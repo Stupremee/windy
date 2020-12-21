@@ -39,7 +39,7 @@ impl log::Log for Logger {
                 .or_else(|| record.module_path())
                 .unwrap_or("<n/a>");
 
-            println!("[ {:>5} ] [{}] {}", record.level(), mod_path, record.args());
+            println!("[{:>5}] [{}] {}", record.level(), mod_path, record.args());
         }
     }
 
@@ -47,6 +47,8 @@ impl log::Log for Logger {
 }
 
 pub fn init_logging() {
-    log::set_logger(&Logger).expect("failed to init logging");
+    if crate::arch::hart_id() == 0 {
+        log::set_logger(&Logger).expect("failed to setup logger");
+    }
     log::set_max_level(log::LevelFilter::Trace);
 }
