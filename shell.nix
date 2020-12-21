@@ -15,9 +15,10 @@ let
         -machine virt \
         -cpu rv64 \
         -smp 4 \
-        -m 512M \
+        -m 128M \
         -nographic \
         -serial mon:stdio \
+        -d guest_errors,unimp \
         -bios none \
         -kernel "$@"
   '';

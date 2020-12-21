@@ -1,7 +1,5 @@
 [build]
 target = "riscv64gc-unknown-none-elf"
-
-[build.riscv64gc-unknown-none-elf]
 rustflags = ["-Clink-arg=-Tlds/qemu.lds"]
 
 [target.riscv64gc-unknown-none-elf]

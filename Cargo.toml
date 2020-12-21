@@ -5,3 +5,8 @@ authors = ["Justus K <justus.k@protonmail.com>"]
 edition = "2018"
 
 [dependencies]
+
+[features]
+default = ["virt"]
+# Enables the kernel for qemu or other similair emulators
+virt = []
