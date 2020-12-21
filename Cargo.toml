@@ -5,8 +5,12 @@ authors = ["Justus K <justus.k@protonmail.com>"]
 edition = "2018"
 
 [dependencies]
+log = "0.4.11"
+spin = "0.7.0"
 
 [features]
 default = ["virt"]
 # Enables the kernel for qemu or other similair emulators
 virt = []
+# Enables logging over UART
+logging = []
