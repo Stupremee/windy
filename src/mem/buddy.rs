@@ -6,36 +6,27 @@ use super::LinkedList;
 use crate::utils;
 use core::{
     alloc::{AllocError, Layout},
-    cmp, mem,
+    cmp, fmt, mem,
     ptr::NonNull,
 };
 
-/// Specifies the log2 value of the smallest possible
-/// allocation size.
+/// The number of possible orders.
 ///
-/// 16-bytes, because we have a 8-bytes header and we
-/// want to saty 8-byte aligned.
-pub const MIN_ALLOC: usize = 4;
+/// Calculated using the following formula:
+///     max_size = 2^order_count * order_0_size
+pub const ORDER_COUNT: usize = 15;
 
-/// Specifies the log2 value of the biggest possible
-/// allocation size.
-///
-/// 64MiB because the memory is only 128MiB large and we
-/// can't use all of it.
-pub const MAX_ALLOC: usize = 26;
-
-/// Allocations are done in powers of two starting from [`MIN_ALLOC`]
-/// to [`MAX_ALLOC`].
-pub const BUCKET_COUNT: usize = MAX_ALLOC - MIN_ALLOC - 1;
-
+/// The central structure that is responsible for allocating memory
+/// using the buddy algorithm.
 pub struct BuddyAllocator {
-    orders: [LinkedList; BUCKET_COUNT],
+    orders: [LinkedList; ORDER_COUNT],
 }
 
 impl BuddyAllocator {
-    pub const fn new() -> Self {
+    /// Create a new, empty buddy allocator.
+    pub fn new() -> Self {
         Self {
-            orders: [LinkedList::new(); BUCKET_COUNT],
+            orders: [LinkedList::new(); ORDER_COUNT],
         }
     }
 
@@ -45,7 +36,7 @@ impl BuddyAllocator {
         // align the pointers
         let start = utils::align_non_null::<_, usize>(start);
         let end = utils::align_non_null::<_, usize>(end);
-        assert!(start < end, "heap start must be before the heap end");
+        assert!(start <= end, "heap start must be before the heap end");
 
         let end_raw = end.as_ptr() as usize;
         let mut current_start = start.as_ptr() as usize;
@@ -64,9 +55,23 @@ impl BuddyAllocator {
             // get the order for the new block, and insert the block into our list
             // of free blocks.
             let order = size.trailing_zeros() as usize;
+
+            // limit the biggest possible order to be `ORDER_COUNT - 1`
+            let order = cmp::min(order, ORDER_COUNT - 1);
+
+            // we may have decreased the order above, so we also
+            // have to update the size if needed
+            let size = cmp::min(size, 1 << order);
+
             self.orders[order].push(current_start as *mut _);
 
             // go to the next part of the memory.
+            log::debug!(
+                "size {:x} current_start {:x} end {:x}",
+                size,
+                current_start,
+                end_raw
+            );
             current_start += size;
         }
     }
@@ -176,12 +181,23 @@ impl BuddyAllocator {
 
     /// Returns the `(size, order)` pair for the given layout.
     fn size_and_order(layout: Layout) -> (usize, usize) {
-        // TODO: Probably we should have `PAGE_SIZE` be the minimum size.
-        let size = cmp::max(
-            layout.size().next_power_of_two(),
-            cmp::max(layout.align(), mem::size_of::<usize>()),
-        );
+        // `PAGE_SIZE` is the smallest size the allocator can allocate.
+        let size = cmp::max(layout.size().next_power_of_two(), super::PAGE_SIZE);
         let order = size.trailing_zeros() as usize;
         (size, order)
+    }
+}
+
+impl fmt::Debug for BuddyAllocator {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "BUDDY ALLOCATOR")?;
+        writeln!(f, "~~~~~~~~~~~~~~~")?;
+        for order in (0..self.orders.len()).rev() {
+            let list = &self.orders[order];
+            let len = list.iter().count();
+            writeln!(f, "Order {} has {} free blocks", order, len)?;
+        }
+        writeln!(f, "~~~~~~~~~~~~~~~")?;
+        Ok(())
     }
 }

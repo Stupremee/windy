@@ -5,7 +5,7 @@ use core::ptr::NonNull;
 /// The size of a single memory page is 4KiB,
 /// this is also the size order-0 in the buddy
 /// allocator.
-pub const PAGE_SIZE: usize = 1 << 12;
+pub const PAGE_SIZE: usize = 1 << 10;
 
 pub mod buddy;
 pub mod linked_list;

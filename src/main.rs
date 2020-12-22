@@ -37,13 +37,18 @@ unsafe extern "C" fn kinit() -> ! {
         arch::wait_forever()
     }
 
+    // initialize trap handler
+    csr::mscratch::write(trap::kernel_trap_frame());
+
     // Init logging and print hello message
     print::init_logging();
     log::info!("Hello from hart {}", arch::hart_id());
 
     // Initializing the memory allocators
+    let mut alloc = mem::buddy::BuddyAllocator::new();
     let (start, end) = mem::heap_range();
-    log::debug!("Heap goes from {:p} to {:p}", start, end,);
+    alloc.add_heap(start, end);
+    println!("{:?}", alloc);
 
     // Set the trap handler
     mtvec::write(trap::trap_vector as usize, mtvec::TrapMode::Direct);
