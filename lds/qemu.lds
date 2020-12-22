@@ -15,47 +15,47 @@ MEMORY
 SECTIONS
 {
   .text : {
-    PROVIDE(_text_start = .);
+    PROVIDE(__text_start = .);
     *(.text.init)
     *(.text)
     *(.text.*)
-    PROVIDE(_text_end = .);
+    PROVIDE(__text_end = .);
   } >ram AT>ram :text
 
-  PROVIDE(_global_pointer = .);
+  PROVIDE(__global_pointer = .);
 
   .rodata : {
-    PROVIDE(_rodata_start = .);
+    PROVIDE(__rodata_start = .);
     *(.rodata)
     *(.rodata.*)
-    PROVIDE(_rodata_end = .);
+    PROVIDE(__rodata_end = .);
   } >ram AT>ram :text
 
   .data : {
     . = ALIGN(4096);
-    PROVIDE(_data_start = .);
+    PROVIDE(__data_start = .);
     *(.sdata)
     *(.sdata.*)
 
     *(.data)
     *(.data.*)
-    PROVIDE(_data_end = .);
+    PROVIDE(__data_end = .);
   } >ram AT>ram :data
 
   .bss : {
-    PROVIDE(_bss_start = .);
+    PROVIDE(__bss_start = .);
     *(.sbss)
     *(.sbss.*)
     *(.bss)
     *(.bss.*)
-    PROVIDE(_bss_end = .);
+    PROVIDE(__bss_end = .);
   } >ram AT>ram :bss
 
-  PROVIDE(_memory_start = ORIGIN(ram));
-  PROVIDE(_stack_start = _bss_end);
-  PROVIDE(_stack_end = _stack_start + 0x80000);
-  PROVIDE(_memory_end = ORIGIN(ram) + LENGTH(ram));
+  PROVIDE(__memory_start = ORIGIN(ram));
+  PROVIDE(__stack_start = __bss_end);
+  PROVIDE(__stack_end = __stack_start + 0x80000);
+  PROVIDE(__memory_end = ORIGIN(ram) + LENGTH(ram));
 
-  PROVIDE(_heap_start = _stack_end);
-  PROVIDE(_heap_size = _memory_end - _heap_start);
+  PROVIDE(__heap_start = __stack_end);
+  PROVIDE(__heap_size = __memory_end - __heap_start);
 }

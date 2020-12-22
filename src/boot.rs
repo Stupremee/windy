@@ -10,7 +10,7 @@ pub unsafe extern "C" fn _boot() -> ! {
         // ---------------------------------
         ".option push",
         ".option norelax",
-        "    la gp, _global_pointer",
+        "    la gp, __global_pointer",
         ".option pop",
         // ---------------------------------
         // Disable paging
@@ -19,8 +19,8 @@ pub unsafe extern "C" fn _boot() -> ! {
         // ---------------------------------
         // Set `bss` to zero
         // ---------------------------------
-        "    la a0, _bss_start",
-        "    la a1, _bss_end",
+        "    la a0, __bss_start",
+        "    la a1, __bss_end",
         "    bgeu a0, a1, zero_bss_done",
         "zero_bss:",
         "    sd zero, (a0)",
@@ -44,7 +44,7 @@ pub unsafe extern "C" fn _boot() -> ! {
         //        hart 1   hart 2
         //
         // ---------------------------------
-        "    la sp, _stack_start",
+        "    la sp, __stack_start",
         // Load the stack size into `a0`
         "    li a0, 0x10000",
         // Load the hardid into `a1`
