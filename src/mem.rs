@@ -7,7 +7,11 @@ use core::ptr::NonNull;
 /// allocator.
 pub const PAGE_SIZE: usize = 1 << 12;
 
+pub mod buddy;
+pub mod linked_list;
 pub mod slab;
+
+pub use linked_list::LinkedList;
 
 /// Returns the range of the heap defined by the linker script
 ///

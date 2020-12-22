@@ -6,7 +6,8 @@
     naked_functions,
     cfg_target_has_atomic,
     panic_info_message,
-    allocator_api
+    allocator_api,
+    const_mut_refs
 )]
 
 #[cfg(not(target_pointer_width = "64"))]
