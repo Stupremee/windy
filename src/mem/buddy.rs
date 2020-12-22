@@ -1,12 +1,12 @@
-#![allow(unused)]
+//! Implementation of a Buddy Allocator that is responsible for allocating
+//! memory that will then be used by either the slab allocator
+//! to allocate objects, or directly by the kernel.
 
 use super::LinkedList;
 use crate::utils;
 use core::{
     alloc::{AllocError, Layout},
-    cmp,
-    mem::{self, MaybeUninit},
-    ptr,
+    cmp, mem,
     ptr::NonNull,
 };
 
@@ -75,7 +75,7 @@ impl BuddyAllocator {
     /// be bigger than the actual layout size.
     pub fn alloc(&mut self, layout: Layout) -> Result<NonNull<u8>, AllocError> {
         // get the size and order of the layout
-        let (size, order) = Self::size_and_order(layout);
+        let (_, order) = Self::size_and_order(layout);
 
         // loop through the orders to find
         // one which can be split up into two buddies
@@ -133,7 +133,7 @@ impl BuddyAllocator {
     /// The pointer (`ptr`) must be allocated by `self` using [`alloc`](Self::alloc).
     pub unsafe fn dealloc(&mut self, ptr: NonNull<u8>, layout: Layout) {
         // get the size and order for the layout
-        let (size, order) = Self::size_and_order(layout);
+        let (_, order) = Self::size_and_order(layout);
 
         // put the pointer back into our list of free blocks, in the corresponding order.
         self.orders[order].push(ptr.as_ptr() as *mut usize);
