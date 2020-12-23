@@ -43,12 +43,27 @@ impl BuddyAllocator {
     /// Adds a region of memory to this allocator and makes it available
     /// for allocation.
     pub unsafe fn add_heap(&mut self, start: NonNull<u8>, end: NonNull<u8>) {
-        // align the pointers
-        let start = utils::align_non_null::<_, usize>(start);
-        let start_addr = start.as_ptr() as usize;
+        let mut start = start.as_ptr();
+        let end = end.as_ptr();
 
-        let end = utils::align_non_null::<_, usize>(end);
-        let end_addr = end.as_ptr() as usize;
+        while (end as usize - start as usize) >= super::PAGE_SIZE {
+            let order = self.add_single_heap_region(start, end);
+            start = start.add(size_for_order(order));
+        }
+    }
+
+    /// Adds a single order that fits into the given range into this allocator.
+    ///
+    /// # Returns
+    ///
+    /// The order the range was inserted in.
+    unsafe fn add_single_heap_region(&mut self, start: *mut u8, end: *mut u8) -> usize {
+        // align the pointers
+        let start = start.wrapping_add(start.align_offset(mem::align_of::<usize>()));
+        let start_addr = start as usize;
+
+        let end = end.wrapping_add(end.align_offset(mem::align_of::<usize>()));
+        let end_addr = end as usize;
 
         // do certain checks that are required
         assert!(start <= end, "heap start must be before the heap end");
@@ -85,7 +100,8 @@ impl BuddyAllocator {
             }
         }
 
-        self.orders[order].push(start.as_ptr() as *mut _);
+        self.orders[order].push(start as *mut _);
+        order
     }
 
     /// Allocates a chunk of memory that has the given order.
@@ -123,9 +139,9 @@ impl BuddyAllocator {
             // `block` is the block that we will split into two buddies
             let block = self.orders[order_to_split].pop().unwrap();
 
-            // `child` is the order where both of the buddies will end up in
-            let child_order = order_to_split - 1;
-            let child = &mut self.orders[child_order];
+            // `target` is the order where both of the buddies will end up in
+            let target_order = order_to_split - 1;
+            let target = &mut self.orders[target_order];
 
             unsafe {
                 // if this is how the order before the split looked like:
@@ -145,12 +161,12 @@ impl BuddyAllocator {
                 // +---------------------------------+
                 //                  ^
                 //                  +--- `buddy_addr` is here, we calculate it by using the `block`
-                //                       address plus the size of the order
-                let buddy_addr = (block as usize) + size_for_order(child_order);
+                //                       address plus the size of the target order
+                let buddy_addr = (block as usize) + size_for_order(target_order);
 
-                // now insert both bodies into the child order
-                child.push(block);
-                child.push(buddy_addr as *mut _);
+                // now insert both bodies into the target order
+                target.push(block);
+                target.push(buddy_addr as *mut _);
             }
         }
 
@@ -170,8 +186,45 @@ impl BuddyAllocator {
     /// # Safety
     ///
     /// The pointer (`ptr`) must be allocated by `self` using [`alloc`](Self::alloc).
-    pub unsafe fn dealloc(&mut self, ptr: NonNull<u8>, order: usize) {
-        todo!()
+    /// `order` must be a valid order, otherwise a panic will happen.
+    pub unsafe fn dealloc(&mut self, ptr: NonNull<u8>, mut order: usize) {
+        assert!(order <= MAX_ORDER, "invalid order given to dealloc");
+
+        // first, insert the buddy into it's order
+        self.orders[order].push(ptr.as_ptr() as _);
+
+        // the pointer to the block we are currently trying to merge.
+        let mut ptr = ptr.as_ptr() as usize;
+
+        // now we try to merge two buddies if they are both free.
+        for target_order in order + 1..self.orders.len() {
+            // this is a trick to find the address for the other buddy, if we
+            // have the address of one of the buddies.
+            let buddy_addr = ptr ^ size_for_order(order);
+
+            // now try to find the buddy in the free orders list
+            if let Some(buddy) = self.orders[order]
+                .iter_mut()
+                .find(|buddy| buddy.addr() as usize == buddy_addr)
+            {
+                // if we found the buddy, remove it
+                buddy.pop();
+                // and pop the other buddy so we remove both buddies,
+                // since they will be merged together
+                self.orders[order].pop();
+                // after removing both buddies,
+                // push the merged block to the next oder
+                self.orders[target_order].push(ptr as *mut _);
+                // now just update the `ptr` to the new block
+                ptr = cmp::min(buddy_addr, ptr);
+                // and go to the next order
+                order += 1;
+            } else {
+                // otherwise we break because we are not able
+                // to do any additional merges.
+                break;
+            }
+        }
     }
 }
 

@@ -27,8 +27,8 @@ pub mod utils;
 
 mod boot;
 
-use core::panic::PanicInfo;
-use csr::{mie, mscratch, mtvec};
+use core::{panic::PanicInfo, ptr::NonNull};
+use csr::{mscratch, mtvec};
 
 #[no_mangle]
 unsafe extern "C" fn kinit() -> ! {
@@ -50,12 +50,12 @@ unsafe extern "C" fn kinit() -> ! {
     // Initializing the memory allocators
     let mut alloc = mem::buddy::BuddyAllocator::new();
     let (start, end) = mem::heap_range();
-    alloc.add_heap(
-        start, end,
-        //core::ptr::NonNull::new(start.as_ptr().add(1 << 26)).unwrap(),
-    );
+    alloc.add_heap(start, end);
+
     println!("{:?}", alloc);
     let res = alloc.alloc(12).unwrap();
+    println!("{:?}", alloc);
+    alloc.dealloc(res, 12);
     println!("{:?}", alloc);
 
     //let layout = core::alloc::Layout::new::<[u8; 8000]>();
