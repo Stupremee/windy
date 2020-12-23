@@ -1,6 +1,9 @@
 //! Intrusive linked list implementation.
 
-use core::{marker::PhantomData, ptr};
+use core::{
+    marker::PhantomData,
+    ptr::{self, NonNull},
+};
 
 /// Intrusive linked lsit used in the buddy allocator.
 #[derive(Clone, Copy)]
@@ -36,13 +39,15 @@ impl LinkedList {
     }
 
     /// Removes the first item from this list.
-    pub fn pop(&mut self) -> Option<*mut usize> {
+    pub fn pop(&mut self) -> Option<NonNull<usize>> {
         if self.is_empty() {
             return None;
         }
 
-        let item = self.head;
-        self.head = unsafe { *item as *mut usize };
+        // SAFETY
+        // We checked above if `head` is null.
+        let item = unsafe { NonNull::new_unchecked(self.head) };
+        self.head = unsafe { *item.as_ptr() as *mut usize };
         Some(item)
     }
 
@@ -71,17 +76,17 @@ pub struct Iter<'list> {
 }
 
 impl Iterator for Iter<'_> {
-    type Item = *mut usize;
+    type Item = NonNull<usize>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.head.is_null() {
             None
         } else {
-            let item = self.head;
             // SAFETY
             // We checked above is `self.head` is NULL, the rest
             // must be guaranteed by the caller of `push`.
-            self.head = unsafe { *item as *mut _ };
+            let item = unsafe { NonNull::new_unchecked(self.head) };
+            self.head = unsafe { *item.as_ptr() as *mut _ };
             Some(item)
         }
     }

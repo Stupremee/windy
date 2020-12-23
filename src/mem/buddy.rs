@@ -3,7 +3,7 @@
 //! to allocate objects, or directly by the kernel.
 
 use super::{AllocStats, LinkedList};
-use core::{alloc::AllocError, cmp, fmt, mem, ptr::NonNull};
+use core::{alloc::AllocError, cmp, mem, ptr::NonNull};
 
 /// The maximum order for the buddy allocator. (inclusive).
 ///
@@ -21,11 +21,24 @@ pub fn size_for_order(order: usize) -> usize {
     (1 << order) * super::PAGE_SIZE
 }
 
+/// Calculates the order that is capable of holding the given size.
+///
+/// Returns `None` if the size is too large.
+pub fn order_for_size(size: usize) -> Option<usize> {
+    let order = size.next_power_of_two();
+    if order > MAX_ORDER {
+        None
+    } else {
+        Some(order)
+    }
+}
+
 /// The central structure that is responsible for allocating memory
 /// using the buddy algorithm.
 pub struct BuddyAllocator {
     orders: [LinkedList; ORDER_COUNT],
     stats: AllocStats,
+    init: bool,
 }
 
 impl BuddyAllocator {
@@ -34,6 +47,7 @@ impl BuddyAllocator {
         Self {
             orders: [LinkedList::new(); ORDER_COUNT],
             stats: AllocStats::with_name("Buddy Allocator"),
+            init: false,
         }
     }
 
@@ -102,7 +116,14 @@ impl BuddyAllocator {
 
         // push the block to our block list.
         self.orders[order].push(start as *mut _);
+        self.init = true;
         order
+    }
+
+    /// Allocates a chunk of memory with the given size.
+    pub fn alloc_size(&mut self, size: usize) -> Result<NonNull<u8>, AllocError> {
+        let order = order_for_size(size).ok_or(AllocError)?;
+        self.alloc(order)
     }
 
     /// Allocates a chunk of memory that has the given order.
@@ -112,6 +133,7 @@ impl BuddyAllocator {
     /// size = (1 << order) * PAGE_SIZE
     /// ```
     pub fn alloc(&mut self, order: usize) -> Result<NonNull<u8>, AllocError> {
+        assert!(self.init, "Buddy allocator is not initialized");
         if order > MAX_ORDER {
             return Err(AllocError);
         }
@@ -123,8 +145,7 @@ impl BuddyAllocator {
         // fast path: if a block with the requested order exists,
         // return it
         if let Some(block) = self.orders[order].pop() {
-            let ptr = NonNull::new(block as *mut u8).expect("block pointer shoulnd't be zero");
-            return Ok(ptr);
+            return Ok(block.cast::<u8>());
         }
 
         // slow path: find a order that we can split into two buddies,
@@ -167,10 +188,10 @@ impl BuddyAllocator {
                 //                  ^
                 //                  +--- `buddy_addr` is here, we calculate it by using the `block`
                 //                       address plus the size of the target order
-                let buddy_addr = (block as usize) + size_for_order(target_order);
+                let buddy_addr = (block.as_ptr() as usize) + size_for_order(target_order);
 
                 // now insert both bodies into the target order
-                target.push(block);
+                target.push(block.as_ptr());
                 target.push(buddy_addr as *mut _);
             }
         }
@@ -181,8 +202,18 @@ impl BuddyAllocator {
         let ptr = self.orders[order]
             .pop()
             .expect("there must be a buddy available");
-        let ptr = NonNull::new(ptr as *mut _).expect("heap block should never be zero");
-        Ok(ptr)
+        Ok(ptr.cast::<u8>())
+    }
+
+    /// Deallocates a block of memory, that is located at the given pointer
+    /// and was allocated using the given size.
+    ///
+    /// # Safety
+    ///
+    /// The pointer (`ptr`) must be allocated by `self` using [`alloc`](Self::alloc).
+    pub unsafe fn dealloc_size(&mut self, ptr: NonNull<u8>, size: usize) {
+        let order = order_for_size(size).expect("invalid size provided to Buddy allocator");
+        self.dealloc(ptr, order);
     }
 
     /// Deallocates a block of memory, that is located at the given pointer
@@ -193,6 +224,7 @@ impl BuddyAllocator {
     /// The pointer (`ptr`) must be allocated by `self` using [`alloc`](Self::alloc).
     /// `order` must be a valid order, otherwise a panic will happen.
     pub unsafe fn dealloc(&mut self, ptr: NonNull<u8>, mut order: usize) {
+        assert!(self.init, "Buddy allocator is not initialized");
         assert!(order <= MAX_ORDER, "invalid order given to dealloc");
 
         // first, insert the buddy into it's order

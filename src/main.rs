@@ -8,7 +8,11 @@
     panic_info_message,
     allocator_api,
     const_mut_refs,
-    global_asm
+    global_asm,
+    half_open_range_patterns,
+    once_cell,
+    const_fn_fn_ptr_basics,
+    nonnull_slice_from_raw_parts
 )]
 
 #[cfg(not(target_pointer_width = "64"))]
@@ -48,13 +52,13 @@ unsafe extern "C" fn kinit() -> ! {
     mtvec::write(trap::trap_vector_ptr() as _);
 
     // Initializing the memory allocators
-    let mut alloc = mem::buddy::BuddyAllocator::new();
+    let mut alloc = mem::BuddyAllocator::new();
     let (start, end) = mem::heap_range();
     alloc.add_heap(start, end);
 
     println!("{}", alloc.stats());
     for _ in 0..1_000 {
-        let res = alloc.alloc(0).unwrap();
+        let _res = alloc.alloc(0).unwrap();
     }
     println!("{}", alloc.stats());
 

@@ -2,7 +2,7 @@
 let
   rustChannel = pkgs.rustChannelOf {
     channel = "nightly";
-    date = "2020-12-20";
+    date = "2020-12-22";
   };
 
   rust = rustChannel.rust.override {
