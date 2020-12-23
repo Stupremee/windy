@@ -2,13 +2,8 @@
 //! memory that will then be used by either the slab allocator
 //! to allocate objects, or directly by the kernel.
 
-use super::LinkedList;
-use crate::utils;
-use core::{
-    alloc::{AllocError, Layout},
-    cmp, fmt, mem,
-    ptr::NonNull,
-};
+use super::{AllocStats, LinkedList};
+use core::{alloc::AllocError, cmp, fmt, mem, ptr::NonNull};
 
 /// The maximum order for the buddy allocator. (inclusive).
 ///
@@ -30,6 +25,7 @@ pub fn size_for_order(order: usize) -> usize {
 /// using the buddy algorithm.
 pub struct BuddyAllocator {
     orders: [LinkedList; ORDER_COUNT],
+    stats: AllocStats,
 }
 
 impl BuddyAllocator {
@@ -37,6 +33,7 @@ impl BuddyAllocator {
     pub fn new() -> Self {
         Self {
             orders: [LinkedList::new(); ORDER_COUNT],
+            stats: AllocStats::with_name("Buddy Allocator"),
         }
     }
 
@@ -100,6 +97,10 @@ impl BuddyAllocator {
             }
         }
 
+        // update the alloc statistics
+        self.stats.total += size_for_order(order);
+
+        // push the block to our block list.
         self.orders[order].push(start as *mut _);
         order
     }
@@ -114,6 +115,10 @@ impl BuddyAllocator {
         if order > MAX_ORDER {
             return Err(AllocError);
         }
+
+        // udate the allocator statistics
+        self.stats.requested += size_for_order(order);
+        self.stats.allocated += size_for_order(order);
 
         // fast path: if a block with the requested order exists,
         // return it
@@ -177,7 +182,7 @@ impl BuddyAllocator {
             .pop()
             .expect("there must be a buddy available");
         let ptr = NonNull::new(ptr as *mut _).expect("heap block should never be zero");
-        return Ok(ptr);
+        Ok(ptr)
     }
 
     /// Deallocates a block of memory, that is located at the given pointer
@@ -226,20 +231,9 @@ impl BuddyAllocator {
             }
         }
     }
-}
 
-impl fmt::Debug for BuddyAllocator {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "BUDDY ALLOCATOR")?;
-        writeln!(f, "~~~~~~~~~~~~~~~")?;
-        for order in (0..self.orders.len()).rev() {
-            let list = &self.orders[order];
-            let len = list.iter().count();
-            if len != 0 {
-                writeln!(f, "Order {} has {} free blocks", order, len)?;
-            }
-        }
-        writeln!(f, "~~~~~~~~~~~~~~~")?;
-        Ok(())
+    /// Returns a copy of the stats at the moment for this allocator.
+    pub fn stats(&self) -> AllocStats {
+        self.stats.clone()
     }
 }

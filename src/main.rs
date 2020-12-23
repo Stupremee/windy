@@ -27,7 +27,7 @@ pub mod utils;
 
 mod boot;
 
-use core::{panic::PanicInfo, ptr::NonNull};
+use core::panic::PanicInfo;
 use csr::{mscratch, mtvec};
 
 #[no_mangle]
@@ -52,21 +52,13 @@ unsafe extern "C" fn kinit() -> ! {
     let (start, end) = mem::heap_range();
     alloc.add_heap(start, end);
 
-    println!("{:?}", alloc);
-    let res = alloc.alloc(12).unwrap();
-    println!("{:?}", alloc);
-    alloc.dealloc(res, 12);
-    println!("{:?}", alloc);
+    println!("{}", alloc.stats());
+    for _ in 0..1_000 {
+        let res = alloc.alloc(0).unwrap();
+    }
+    println!("{}", alloc.stats());
 
-    //let layout = core::alloc::Layout::new::<[u8; 8000]>();
-
-    //println!("{:?}", alloc);
-
-    //alloc.dealloc(res, layout);
-
-    //println!("{:?}", alloc);
-
-    // Wait this halt forever
+    // Exit successfully
     arch::exit(0)
 }
 

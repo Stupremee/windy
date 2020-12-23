@@ -130,7 +130,7 @@ pub unsafe extern "C" fn trap_handler(
     frame: &mut TrapFrame,
     cause: usize,
     tval: usize,
-    epc: usize,
+    _epc: usize,
 ) -> usize {
     let cause = Trap::from_cause(cause);
 
