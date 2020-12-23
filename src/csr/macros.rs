@@ -1,11 +1,20 @@
 macro_rules! read_csr {
     (impl $name:ident, $number:expr) => {
-        read_csr!($name);
+        read_csr!($number);
 
         #[inline]
         pub fn read() -> $name {
-            let bits = _read();
+            let bits = unsafe { _read() };
             Self { bits }
+        }
+    };
+
+    (usize, $number:expr) => {
+        read_csr!($number);
+
+        #[inline]
+        pub fn read() -> usize {
+            unsafe { _read() }
         }
     };
 
@@ -42,7 +51,7 @@ macro_rules! write_csr {
         /// Write the raw bits into the register.
         #[inline]
         pub fn write(bits: usize) {
-            unsafe { _write() }
+            unsafe { _write(bits) }
         }
     };
 

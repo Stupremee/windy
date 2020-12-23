@@ -7,7 +7,8 @@
     cfg_target_has_atomic,
     panic_info_message,
     allocator_api,
-    const_mut_refs
+    const_mut_refs,
+    global_asm
 )]
 
 #[cfg(not(target_pointer_width = "64"))]
@@ -27,7 +28,7 @@ pub mod utils;
 mod boot;
 
 use core::panic::PanicInfo;
-use csr::mtvec;
+use csr::{mie, mscratch, mtvec};
 
 #[no_mangle]
 unsafe extern "C" fn kinit() -> ! {
@@ -37,21 +38,21 @@ unsafe extern "C" fn kinit() -> ! {
         arch::wait_forever()
     }
 
-    // initialize trap handler
-    csr::mscratch::write(trap::kernel_trap_frame());
-
     // Init logging and print hello message
     print::init_logging();
     log::info!("Hello from hart {}", arch::hart_id());
+
+    // initialize trap handler
+    let trap_frame = trap::kernel_trap_frame();
+    mscratch::write(trap_frame);
+    mie::write(0x222);
+    mtvec::write(trap::trap_vector_ptr() as _);
 
     // Initializing the memory allocators
     let mut alloc = mem::buddy::BuddyAllocator::new();
     let (start, end) = mem::heap_range();
     alloc.add_heap(start, end);
     println!("{:?}", alloc);
-
-    // Set the trap handler
-    mtvec::write(trap::trap_vector as usize, mtvec::TrapMode::Direct);
 
     // Wait this halt forever
     arch::exit(0)
