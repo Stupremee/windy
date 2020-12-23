@@ -45,14 +45,26 @@ unsafe extern "C" fn kinit() -> ! {
     // initialize trap handler
     let trap_frame = trap::kernel_trap_frame();
     mscratch::write(trap_frame);
-    mie::write(0x222);
     mtvec::write(trap::trap_vector_ptr() as _);
 
     // Initializing the memory allocators
     let mut alloc = mem::buddy::BuddyAllocator::new();
     let (start, end) = mem::heap_range();
-    alloc.add_heap(start, end);
+    alloc.add_heap(
+        start, end,
+        //core::ptr::NonNull::new(start.as_ptr().add(1 << 26)).unwrap(),
+    );
     println!("{:?}", alloc);
+    let res = alloc.alloc(12).unwrap();
+    println!("{:?}", alloc);
+
+    //let layout = core::alloc::Layout::new::<[u8; 8000]>();
+
+    //println!("{:?}", alloc);
+
+    //alloc.dealloc(res, layout);
+
+    //println!("{:?}", alloc);
 
     // Wait this halt forever
     arch::exit(0)

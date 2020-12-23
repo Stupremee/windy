@@ -10,11 +10,21 @@ use core::{
     ptr::NonNull,
 };
 
-/// The number of possible orders.
+/// The maximum order for the buddy allocator. (inclusive).
 ///
 /// Calculated using the following formula:
 ///     max_size = 2^order_count * order_0_size
-pub const ORDER_COUNT: usize = 15;
+pub const MAX_ORDER: usize = 14;
+
+/// The size of the orders array inside the buddy allocator.
+///
+/// We add `1` here because this is the size of the array.
+pub const ORDER_COUNT: usize = 14 + 1;
+
+/// Calculates the number of bytes inside the `order`.
+pub fn size_for_order(order: usize) -> usize {
+    (1 << order) * super::PAGE_SIZE
+}
 
 /// The central structure that is responsible for allocating memory
 /// using the buddy algorithm.
@@ -35,156 +45,133 @@ impl BuddyAllocator {
     pub unsafe fn add_heap(&mut self, start: NonNull<u8>, end: NonNull<u8>) {
         // align the pointers
         let start = utils::align_non_null::<_, usize>(start);
+        let start_addr = start.as_ptr() as usize;
+
         let end = utils::align_non_null::<_, usize>(end);
+        let end_addr = end.as_ptr() as usize;
+
+        // do certain checks that are required
         assert!(start <= end, "heap start must be before the heap end");
+        assert!(
+            (end_addr - start_addr) >= super::PAGE_SIZE,
+            "heap region must be at least one page size"
+        );
 
-        let end_raw = end.as_ptr() as usize;
-        let mut current_start = start.as_ptr() as usize;
+        // loop through every order, and check if the `start..end` region can fit
+        // the order.
+        let mut order = 0;
+        while order <= MAX_ORDER {
+            // calculate the size, that the next order would require,
+            // so we can break if not, and we will use the previous order,
+            // that fits into the range.
+            let order_size = size_for_order(order + 1);
 
-        // loop until there's not enough place to fit _at least_ one pointer
-        // width into the block.
-        while current_start + mem::size_of::<usize>() <= end_raw {
-            // get the highest bit of the start that is not zero.
-            // 0b0111100011010000 => 0b0100000000000000
-            let first_bit = current_start & (!current_start + 1);
+            // add the order size to the start address
+            let new_end = match start_addr.checked_add(order_size) {
+                Some(num) => num,
+                // if we overflow
+                None => break,
+            };
 
-            // either we chose the `first_bit` as the size, or, if there's not enough memory left
-            // to fit `first_bit` into it, we choose the rest of the memory.
-            let size = cmp::min(first_bit, utils::prev_power_of_two(end_raw - current_start));
-
-            // get the order for the new block, and insert the block into our list
-            // of free blocks.
-            let order = size.trailing_zeros() as usize;
-
-            // limit the biggest possible order to be `ORDER_COUNT - 1`
-            let order = cmp::min(order, ORDER_COUNT - 1);
-
-            // we may have decreased the order above, so we also
-            // have to update the size if needed
-            let size = cmp::min(size, 1 << order);
-
-            self.orders[order].push(current_start as *mut _);
-
-            // go to the next part of the memory.
-            log::debug!(
-                "size {:x} current_start {:x} end {:x}",
-                size,
-                current_start,
-                end_raw
-            );
-            current_start += size;
+            // now check if the region is large enough to store
+            // the order size
+            if new_end <= end_addr {
+                // if the new end is smaller than the end address,
+                // the heap region is large enough and we try the next order
+                order += 1;
+            } else {
+                // heap region too small, so use the previous order
+                break;
+            }
         }
+
+        self.orders[order].push(start.as_ptr() as *mut _);
     }
 
-    /// Allocates a chunk of memory that is able to hold the given layout, but may
-    /// be bigger than the actual layout size.
-    pub fn alloc(&mut self, layout: Layout) -> Result<NonNull<u8>, AllocError> {
-        // get the size and order of the layout
-        let (_, order) = Self::size_and_order(layout);
+    /// Allocates a chunk of memory that has the given order.
+    ///
+    /// The size for the given chunk is defined by the `order`, calculated using:
+    /// ```ignore
+    /// size = (1 << order) * PAGE_SIZE
+    /// ```
+    pub fn alloc(&mut self, order: usize) -> Result<NonNull<u8>, AllocError> {
+        if order > MAX_ORDER {
+            return Err(AllocError);
+        }
 
-        // loop through the orders to find
-        // one which can be split up into two buddies
-        for idx in order..self.orders.len() {
-            let list = &mut self.orders[idx];
-            // if there are no blocks for this order, continue
-            if list.is_empty() {
-                continue;
-            }
-
-            // If the found order is larger than the requested order,
-            // split the current `order` into two buddies.
-            for order_to_split in (order + 1..idx + 1).rev() {
-                // we know that the first time we enter this loop, we _must_ have an available
-                // block, because otherwise we would have continued already.
-                //
-                // So pop the block that will be splitted into the buddies
-                let block = self.orders[order_to_split].pop().ok_or(AllocError)?;
-
-                // `target_order` is the order where the two buddies from `block` will be put in.
-                let target_order = order_to_split - 1;
-                let target = &mut self.orders[target_order];
-
-                unsafe {
-                    // calculate the address of the buddy for `block`, which will be
-                    // the address of the block plus the target order size.
-                    let buddy = block as usize + (1 << target_order);
-
-                    // insert the body into the target order
-                    target.push(buddy as *mut _);
-
-                    // insert the original block into target order
-                    target.push(block);
-                }
-            }
-
-            // if we get here, we executed all required splits to have
-            // at least one block of memory available.
-            // So pop it and return it.
-            let ptr = self.orders[order]
-                .pop()
-                .expect("at this point there must be a free block");
-            let ptr = NonNull::new(ptr as *mut _).expect("heap block should never be zero");
+        // fast path: if a block with the requested order exists,
+        // return it
+        if let Some(block) = self.orders[order].pop() {
+            let ptr = NonNull::new(block as *mut u8).expect("block pointer shoulnd't be zero");
             return Ok(ptr);
         }
 
-        Err(AllocError)
+        // slow path: find a order that we can split into two buddies,
+        // split the order, return one of the buddies.
+        let split_idx = self
+            .orders
+            .iter()
+            .position(|list| !list.is_empty())
+            .ok_or(AllocError)?;
+
+        // now walk down the orders from top to bottom, so we can split
+        // multiple orders if necessary
+        for order_to_split in (order + 1..split_idx + 1).rev() {
+            // we can `unwrap` here, because we _must_ have a block available,
+            // otherwise we wouldn't be here.
+            //
+            // `block` is the block that we will split into two buddies
+            let block = self.orders[order_to_split].pop().unwrap();
+
+            // `child` is the order where both of the buddies will end up in
+            let child_order = order_to_split - 1;
+            let child = &mut self.orders[child_order];
+
+            unsafe {
+                // if this is how the order before the split looked like:
+                //
+                // +-- this is were `block` starts
+                // v
+                // +--------------------------------+
+                // |        `order_to_split`        |
+                // +--------------------------------+
+                //
+                // so to get the buddy address we do the following:
+                //
+                // +-- this is were `block` starts, it's now the first buddy
+                // v
+                // +---------------------------------+
+                // |    buddy 1     |    buddy 2     |
+                // +---------------------------------+
+                //                  ^
+                //                  +--- `buddy_addr` is here, we calculate it by using the `block`
+                //                       address plus the size of the order
+                let buddy_addr = (block as usize) + size_for_order(child_order);
+
+                // now insert both bodies into the child order
+                child.push(block);
+                child.push(buddy_addr as *mut _);
+            }
+        }
+
+        // now pop one of the created buddies from the list.
+        // we must have one, otherwise we either would have returned
+        // already, or a buddy would've been created
+        let ptr = self.orders[order]
+            .pop()
+            .expect("there must be a buddy available");
+        let ptr = NonNull::new(ptr as *mut _).expect("heap block should never be zero");
+        return Ok(ptr);
     }
 
     /// Deallocates a block of memory, that is located at the given pointer
-    /// and has the given layout.
+    /// and was allocated in the given order.
     ///
     /// # Safety
     ///
     /// The pointer (`ptr`) must be allocated by `self` using [`alloc`](Self::alloc).
-    pub unsafe fn dealloc(&mut self, ptr: NonNull<u8>, layout: Layout) {
-        // get the size and order for the layout
-        let (_, order) = Self::size_and_order(layout);
-
-        // put the pointer back into our list of free blocks, in the corresponding order.
-        self.orders[order].push(ptr.as_ptr() as *mut usize);
-
-        // now try to merge two buddies.
-        let mut current_ptr = ptr.as_ptr() as usize;
-        let mut current_order = order;
-
-        // loop through every order, going from low to high order
-        while current_order < self.orders.len() {
-            // thats a trick to calculate the address for the buddy of the
-            // current block.
-            let buddy = current_ptr ^ (1 << current_order);
-
-            // loop through every block in the current order,
-            // remove the block if it's the buddy for our current block,
-            // and set the `buddy_found` flag to `true`.
-            let mut buddy_found = false;
-            for block in self.orders[current_order].iter_mut() {
-                if block.addr() as usize == buddy {
-                    block.pop();
-                    buddy_found = true;
-                    break;
-                }
-            }
-
-            // if a buddy was found, remove the block, the one we will merge now,
-            // from the order, then insert the buddy or current block
-            // into the higher order.
-            if buddy_found {
-                self.orders[current_order].pop();
-                current_ptr = cmp::min(current_ptr, buddy);
-                current_order += 1;
-                self.orders[current_order].push(current_ptr as *mut _);
-            } else {
-                break;
-            }
-        }
-    }
-
-    /// Returns the `(size, order)` pair for the given layout.
-    fn size_and_order(layout: Layout) -> (usize, usize) {
-        // `PAGE_SIZE` is the smallest size the allocator can allocate.
-        let size = cmp::max(layout.size().next_power_of_two(), super::PAGE_SIZE);
-        let order = size.trailing_zeros() as usize;
-        (size, order)
+    pub unsafe fn dealloc(&mut self, ptr: NonNull<u8>, order: usize) {
+        todo!()
     }
 }
 
@@ -195,7 +182,9 @@ impl fmt::Debug for BuddyAllocator {
         for order in (0..self.orders.len()).rev() {
             let list = &self.orders[order];
             let len = list.iter().count();
-            writeln!(f, "Order {} has {} free blocks", order, len)?;
+            if len != 0 {
+                writeln!(f, "Order {} has {} free blocks", order, len)?;
+            }
         }
         writeln!(f, "~~~~~~~~~~~~~~~")?;
         Ok(())
