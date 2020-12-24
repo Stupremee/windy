@@ -19,12 +19,12 @@ pub unsafe extern "C" fn _boot() -> ! {
         // ---------------------------------
         // Set `bss` to zero
         // ---------------------------------
-        "    la a0, __bss_start",
-        "    la a1, __bss_end",
-        "    bgeu a0, a1, zero_bss_done",
+        "    la t0, __bss_start",
+        "    la t1, __bss_end",
+        "    bgeu t0, t1, zero_bss_done",
         "zero_bss:",
-        "    sd zero, (a0)",
-        "    addi a0, a0, 8",
+        "    sd zero, (t0)",
+        "    addi t0, t0, 8",
         "zero_bss_done:",
         // ---------------------------------
         // Initialize 64KiB stack
@@ -46,16 +46,16 @@ pub unsafe extern "C" fn _boot() -> ! {
         // ---------------------------------
         "    la sp, __stack_start",
         // Load the stack size into `a0`
-        "    li a0, 0x10000",
+        "    li t0, 0x10000",
         // Load the hardid into `a1`
-        "    csrr a1, mhartid",
+        "    csrr t1, mhartid",
         // Increment it by one because hart ids start with zero.
-        "    addi a1, a1, 1",
+        "    addi t1, t1, 1",
         // Multiply the stack size with the hart id to get
         // the offset for this hart inside the global stack
-        "    mul a0, a0, a1",
+        "    mul t0, t0, t1",
         // Add the offset to the stack pointer
-        "    add sp, sp, a0",
+        "    add sp, sp, t0",
         // ---------------------------------
         // Jump into rust code
         // ---------------------------------

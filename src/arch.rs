@@ -1,3 +1,5 @@
+//! Functions and abstractions related to the RISC-V architecture.
+
 #[cfg(feature = "virt")]
 mod virt;
 #[cfg(feature = "virt")]
@@ -12,6 +14,7 @@ pub fn hart_id() -> usize {
 }
 
 /// Loop forever
+#[inline]
 pub fn wait_forever() -> ! {
     loop {
         unsafe { asm!("wfi") }
