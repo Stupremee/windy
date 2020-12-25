@@ -19,6 +19,7 @@ SECTIONS
     *(.text.init)
     *(.text)
     *(.text.*)
+    . = ALIGN(4096);
     PROVIDE(__text_end = .);
   } >ram AT>ram :text
 
@@ -40,6 +41,13 @@ SECTIONS
     *(.data)
     *(.data.*)
     PROVIDE(__data_end = .);
+
+    /* `__trap_stack` is used inside the trap handler for saving the trap 
+     * frame and used as the actual stack
+     */
+    . += 4096;
+    PROVIDE(__trap_stack = .);
+    . = ALIGN(8);
   } >ram AT>ram :data
 
   .bss : {
