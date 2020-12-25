@@ -1,0 +1,13 @@
+[package]
+name = "kernel"
+version = "0.1.0"
+description = "The actual Kernel for Windy"
+authors = ["Justus K <justus.k@protonmail.com>"]
+edition = "2018"
+
+[dependencies]
+
+[features]
+default = ["virt"]
+# Enables the kernel for the QEMU `virt` machine
+virt = []

@@ -1,16 +1,7 @@
-[package]
-name = "windy"
-version = "0.1.0"
-authors = ["Justus K <justus.k@protonmail.com>"]
-edition = "2018"
-
-[dependencies]
-log = "0.4.11"
-spin = "0.7.0"
-
-[features]
-default = ["virt"]
-# Enables the kernel for qemu or other similair emulators
-virt = []
-# Enables logging over UART
-logging = []
+[workspace]
+members = [
+    "crates/sbi",
+    "crates/kernel",
+    "crates/common",
+]
+default-members = ["crates/kernel"]

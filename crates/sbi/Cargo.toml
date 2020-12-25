@@ -1,0 +1,8 @@
+[package]
+name = "sbi"
+version = "0.1.0"
+description = "Rust implementation of the OpenSBI specification"
+authors = ["Justus K <justus.k@protonmail.com>"]
+edition = "2018"
+
+[dependencies]
