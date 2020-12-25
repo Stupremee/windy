@@ -18,6 +18,12 @@ mod macros;
 
 #[no_mangle]
 unsafe extern "C" fn kinit() -> ! {
+    if arch::hart_id() != 0 {
+        arch::wait_forever();
+    }
+
     dbg!();
+    sbi::init_sbi_handler();
+    asm!("ecall");
     arch::exit(1);
 }

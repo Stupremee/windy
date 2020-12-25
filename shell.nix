@@ -18,7 +18,7 @@ let
         -m 128M \
         -nographic \
         -serial mon:stdio \
-        -d guest_errors,unimp \
+        -d guest_errors,trace:riscv_trap,trace:sifive_gpio_write,trace:pmpcfg_csr_write,trace:pmpaddr_csr_write,int,trace:exynos_uart_read \
         -bios none \
         -kernel "$@"
   '';

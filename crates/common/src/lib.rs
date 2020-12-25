@@ -11,4 +11,5 @@ compile_error!("Windy can only run on 64 bit systems");
 compile_error!("Windy can only run on systems that have atomic support");
 
 pub mod registers;
+pub mod symbols;
 pub mod trap;

@@ -6,6 +6,8 @@ authors = ["Justus K <justus.k@protonmail.com>"]
 edition = "2018"
 
 [dependencies]
+sbi = { path = "../sbi" }
+common = { path = "../common" }
 
 [features]
 default = ["virt"]

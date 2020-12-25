@@ -4,6 +4,7 @@
 mod macros;
 
 pub mod mie;
+pub use mie::mie;
 
 /// The `mtvec` CSR.
 pub mod mtvec {
