@@ -23,7 +23,7 @@ unsafe extern "C" fn kinit() -> ! {
     }
 
     dbg!();
-    sbi::init_sbi_handler();
+    windy_sbi::init_sbi_handler();
     asm!("ecall");
     arch::exit(1);
 }

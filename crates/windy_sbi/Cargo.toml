@@ -1,9 +1,9 @@
 [package]
-name = "sbi"
+name = "windy_sbi"
 version = "0.1.0"
 description = "Rust implementation of the OpenSBI specification"
 authors = ["Justus K <justus.k@protonmail.com>"]
 edition = "2018"
 
 [dependencies]
-common = { path = "../common" }
+windy_riscv = { path = "../windy_riscv" }

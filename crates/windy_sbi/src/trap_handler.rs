@@ -1,7 +1,7 @@
 //! The trap handler that will parse the arguments provided
 //! to the SBI call and then forward to the specific extension.
 
-use common::trap::TrapFrame;
+use windy_riscv::trap::{Trap, TrapFrame};
 
 extern "C" {
     static mut __sbi_trap_handler: u8;
@@ -19,7 +19,29 @@ unsafe extern "C" fn __rust_sbi_trap_handler(
     cause: usize,
     epc: usize,
 ) -> usize {
-    *(0x10000000 as *mut u8) = 't' as u8;
+    if let Some(Trap::SupervisorModeEnvironmentCall) = Trap::from_cause(cause) {
+        let eid = frame.a7() as u32;
+        let fid = frame.a6() as u32;
+
+        let args = [frame.a0(), frame.a1(), frame.a2(), frame.a3()];
+        let result = crate::interface::handle_ecall(eid, fid, args);
+
+        match result {
+            Ok(value) => {
+                // set the error code to `0`, aka successful
+                *frame.a0_ref() = 0;
+                // store the value in `a1`
+                *frame.a1_ref() = value;
+            }
+            Err(err) => {
+                // store the error code in `a0`.
+                *frame.a0_ref() = err.code() as usize;
+                // set the value to `0`
+                *frame.a1_ref() = 0;
+            }
+        };
+    }
+
     // Skip the `ecall` instruction that caused this interrupt
     epc + 4
 }

@@ -1,6 +1,6 @@
 [build]
 target = "riscv64gc-unknown-none-elf"
-rustflags = ["-Clink-arg=-Tcrates/kernel/lds/qemu.lds"]
+rustflags = ["-Clink-arg=-Tcrates/windy_kernel/lds/qemu.lds"]
 
 [target.riscv64gc-unknown-none-elf]
 runner = "run-qemu"

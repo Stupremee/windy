@@ -96,3 +96,77 @@ impl Trap {
         }
     }
 }
+
+impl TrapFrame {
+    pub fn sp(&self) -> usize {
+        self.xregs[1]
+    }
+
+    pub fn sp_ref(&mut self) -> &mut usize {
+        &mut self.xregs[1]
+    }
+
+    pub fn a0(&self) -> usize {
+        self.xregs[9]
+    }
+
+    pub fn a0_ref(&mut self) -> &mut usize {
+        &mut self.xregs[9]
+    }
+
+    pub fn a1(&self) -> usize {
+        self.xregs[10]
+    }
+
+    pub fn a1_ref(&mut self) -> &mut usize {
+        &mut self.xregs[10]
+    }
+
+    pub fn a2(&self) -> usize {
+        self.xregs[11]
+    }
+
+    pub fn a2_ref(&mut self) -> &mut usize {
+        &mut self.xregs[11]
+    }
+
+    pub fn a3(&self) -> usize {
+        self.xregs[12]
+    }
+
+    pub fn a3_ref(&mut self) -> &mut usize {
+        &mut self.xregs[12]
+    }
+
+    pub fn a4(&self) -> usize {
+        self.xregs[13]
+    }
+
+    pub fn a4_ref(&mut self) -> &mut usize {
+        &mut self.xregs[13]
+    }
+
+    pub fn a5(&self) -> usize {
+        self.xregs[14]
+    }
+
+    pub fn a5_ref(&mut self) -> &mut usize {
+        &mut self.xregs[14]
+    }
+
+    pub fn a6(&self) -> usize {
+        self.xregs[15]
+    }
+
+    pub fn a6_ref(&mut self) -> &mut usize {
+        &mut self.xregs[15]
+    }
+
+    pub fn a7(&self) -> usize {
+        self.xregs[16]
+    }
+
+    pub fn a7_ref(&mut self) -> &mut usize {
+        &mut self.xregs[16]
+    }
+}

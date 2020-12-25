@@ -1,13 +1,13 @@
 [package]
-name = "kernel"
+name = "windy_kernel"
 version = "0.1.0"
 description = "The actual Kernel for Windy"
 authors = ["Justus K <justus.k@protonmail.com>"]
 edition = "2018"
 
 [dependencies]
-sbi = { path = "../sbi" }
-common = { path = "../common" }
+windy_sbi = { path = "../windy_sbi" }
+windy_riscv = { path = "../windy_riscv" }
 
 [features]
 default = ["virt"]

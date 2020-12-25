@@ -1,7 +1,7 @@
 [package]
-name = "common"
+name = "windy_riscv"
 version = "0.1.0"
-description = "Commonly used components that are used across various crates."
+description = "RISC-V Architecture specific components."
 authors = ["Justus K <justus.k@protonmail.com>"]
 edition = "2018"
 

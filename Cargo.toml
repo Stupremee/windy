@@ -1,7 +1,5 @@
 [workspace]
 members = [
-    "crates/sbi",
-    "crates/kernel",
-    "crates/common",
+    "crates/*",
 ]
-default-members = ["crates/kernel"]
+default-members = ["crates/windy_kernel"]
