@@ -2,7 +2,13 @@
 //! method execution.
 
 use super::{Error, SbiResult};
-use windy_riscv::registers::{marchid, mimpid, mvendorid};
+use windy_riscv::{
+    prelude::*,
+    registers::{
+        marchid, mimpid, mvendorid,
+        sip::{sip, SIP},
+    },
+};
 
 /// The major version of the SBI specification that is implemented
 /// by this library.
@@ -27,10 +33,11 @@ pub const SBI_IMPLEMENTATION_VERSION: usize = 1;
 
 /// The unique identifier for the base extension.
 pub const BASE_EXTENSION_ID: u32 = 0x10;
+pub const TIMER_EXTENSION_ID: u32 = 0x54494D45;
 
 /// A list of extensions that are supported by this
 /// implementation.
-pub const SUPPORTED_EXTENSIONS: &[u32] = &[BASE_EXTENSION_ID];
+pub const SUPPORTED_EXTENSIONS: &[u32] = &[BASE_EXTENSION_ID, TIMER_EXTENSION_ID];
 
 /// Handles a SBI call that was caused by an `ecall` interrupt.
 pub(crate) fn handle_ecall(eid: u32, fid: u32, args: [usize; 4]) -> SbiResult<usize> {
@@ -40,6 +47,7 @@ pub(crate) fn handle_ecall(eid: u32, fid: u32, args: [usize; 4]) -> SbiResult<us
 
     match eid {
         BASE_EXTENSION_ID => handle_base_ecall(fid, args[0]),
+        TIMER_EXTENSION_ID => handle_timer_ecall(fid, args[0] as u64).map(|_| 0),
         _ => Err(Error::NotSupported),
     }
 }
@@ -67,5 +75,26 @@ fn handle_base_ecall(fid: u32, arg: usize) -> SbiResult<usize> {
         // Return the `mimpi` register
         0x06 => Ok(mimpid::read()),
         _ => Err(Error::NotSupported),
+    }
+}
+
+fn handle_timer_ecall(fid: u32, stime_value: u64) -> SbiResult<()> {
+    // The timer extension only has a single function with id `0x00`.
+    if fid != 0x00 {
+        return Err(Error::NotSupported);
+    }
+
+    let platform = crate::platform::global();
+    match &*platform.lock() {
+        Some(platform) => {
+            // Program the clock for the next event.
+            (platform.set_timer)(stime_value);
+            // clear the timer interrupt pending bit.
+            sip().modify(SIP::STIP::CLEAR);
+
+            Ok(())
+        }
+        // there's no global platform set, so return `NotSupported`.
+        None => Err(Error::NotSupported),
     }
 }

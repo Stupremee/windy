@@ -34,11 +34,12 @@ register_bitfields! { u64,
 pub struct MieRegister;
 
 impl RegisterReadWrite<u64, MIE::Register> for MieRegister {
-    #[inline(always)]
+    #[inline]
     fn get(&self) -> u64 {
         unsafe { _read() as u64 }
     }
 
+    #[inline]
     fn set(&self, value: u64) {
         unsafe { _write(value as usize) };
     }

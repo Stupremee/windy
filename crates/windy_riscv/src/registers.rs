@@ -3,6 +3,9 @@
 #[macro_use]
 mod macros;
 
+pub mod sip;
+pub use sip::sip;
+
 pub mod mie;
 pub use mie::mie;
 

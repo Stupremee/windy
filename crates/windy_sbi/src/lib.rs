@@ -18,6 +18,9 @@ compile_error!("Windy can only run on systems that have atomic support");
 mod interface;
 mod trap_handler;
 
+pub mod platform;
+pub use platform::Platform;
+
 pub use interface::{
     SBI_IMPLEMENTATION_ID, SBI_IMPLEMENTATION_VERSION, SBI_SPEC_MAJOR, SBI_SPEC_MINOR,
     SBI_SPEC_VERSION, SUPPORTED_EXTENSIONS,
@@ -31,12 +34,21 @@ pub type SbiResult<T> = core::result::Result<T, Error>;
 /// Initializes the `SBI` backend that will run in M-Mode.
 ///
 /// This function will write the address of the trap handler
-/// into the `mtvec` register.
+/// into the `mtvec` register. It will also set a global
+/// [`Platform`] instance, which can not be replaced, even if you call
+/// this function again.
 ///
 /// # Safety
 ///
 /// This functions has to be run in M-Mode.
-pub unsafe fn init_sbi_handler() {
+pub unsafe fn init_sbi_handler(platform: Platform) {
+    let global = platform::global();
+
+    let mut guard = global.lock();
+    if guard.is_none() {
+        *guard = Some(platform);
+    }
+
     let addr = trap_handler::trap_handler_address();
     mtvec::write(addr);
 }

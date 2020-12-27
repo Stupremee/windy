@@ -13,3 +13,9 @@ compile_error!("Windy can only run on systems that have atomic support");
 pub mod registers;
 pub mod symbols;
 pub mod trap;
+
+/// Prelude for `windy_riscv` which exports common traits,
+/// like the CPU register traits from [`register`](https://docs.rs/register).
+pub mod prelude {
+    pub use register::cpu::*;
+}
