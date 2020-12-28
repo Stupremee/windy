@@ -15,6 +15,7 @@ compile_error!("Windy can only run on 64 bit systems");
 #[cfg(not(target_has_atomic = "ptr"))]
 compile_error!("Windy can only run on systems that have atomic support");
 
+// mod hart_mask;
 mod interface;
 mod trap_handler;
 
@@ -26,7 +27,14 @@ pub use interface::{
     SBI_SPEC_VERSION, SUPPORTED_EXTENSIONS,
 };
 
-use windy_riscv::registers::mtvec;
+use windy_riscv::{
+    prelude::*,
+    registers::{
+        mepc, mhartid,
+        mstatus::{self, MSTATUS},
+        mtvec,
+    },
+};
 
 /// The result of a SBI call.
 pub type SbiResult<T> = core::result::Result<T, Error>;
@@ -38,10 +46,12 @@ pub type SbiResult<T> = core::result::Result<T, Error>;
 /// [`Platform`] instance, which can not be replaced, even if you call
 /// this function again.
 ///
+/// Just call this function at the start of one your harts.
+///
 /// # Safety
 ///
 /// This functions has to be run in M-Mode.
-pub unsafe fn init_sbi_handler(platform: Platform) {
+pub unsafe fn install_sbi_handler(platform: Platform) {
     let global = platform::global();
 
     let mut guard = global.lock();
@@ -122,4 +132,46 @@ impl Error {
             code => Err(Error::from_code(code)),
         }
     }
+}
+
+/// Pointer to a function that can be used as the entrypoint when
+/// entering another privilege mode using [`enter_privileged`].
+///
+/// It takes the `hart_id` and a pointer to the device tree as arguments.
+pub type PrivilegeEntry = fn(usize, *const u8) -> !;
+
+/// Represents any privilige mode, that can be jumped into using
+/// [`enter_privileged`].
+#[derive(Debug, Clone, Copy)]
+pub enum PrivilegeMode {
+    Machine,
+    Supervisor,
+    User,
+}
+
+/// Enter a lower privilege mode from M-Mode.
+///
+/// This must be called from every hart that is supposed to enter lower privilege mode.
+pub unsafe fn enter_privileged(
+    mode: PrivilegeMode,
+    entry: PrivilegeEntry,
+    device_tree: *const u8,
+) -> ! {
+    // write the address of the entrypoint into `mepc`,
+    // so `mret` knows where to jump to
+    mepc::write(entry as _);
+
+    // write the target privilege mode into `mstatus`.
+    let mstatus = mstatus::mstatus();
+    match mode {
+        PrivilegeMode::Machine => mstatus.modify(MSTATUS::MPP::M),
+        PrivilegeMode::Supervisor => mstatus.modify(MSTATUS::MPP::S),
+        PrivilegeMode::User => mstatus.modify(MSTATUS::MPP::U),
+    }
+
+    // read hart id which will be given as an argument to the entry point
+    let hart_id = mhartid::read();
+
+    // now execute the `mret` instruction and set the argument registers
+    asm!("mret", in("a0") hart_id, in("a1") device_tree, options(noreturn))
 }

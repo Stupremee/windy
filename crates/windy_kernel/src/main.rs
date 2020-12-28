@@ -16,14 +16,21 @@ mod panic;
 #[macro_use]
 mod macros;
 
+use windy_sbi::Platform;
+
 #[no_mangle]
 unsafe extern "C" fn kinit() -> ! {
+    let platform = Platform {
+        set_timer: |_| {},
+        hart_count: 1,
+    };
+
     if arch::hart_id() != 0 {
-        arch::wait_forever();
+        for _ in 0..100 {}
     }
 
-    dbg!();
-    windy_sbi::init_sbi_handler();
+    windy_sbi::install_sbi_handler(platform);
     asm!("ecall");
-    arch::exit(1);
+    for _ in 0..1000 {}
+    arch::exit(1)
 }

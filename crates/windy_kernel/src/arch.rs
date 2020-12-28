@@ -9,7 +9,7 @@ pub use virt::*;
 #[inline(always)]
 pub fn hart_id() -> usize {
     let mut hart_id: usize;
-    unsafe { asm!("csrr {}, mhartid", out(reg) hart_id, options(nostack)) }
+    unsafe { asm!("csrr {}, mhartid", out(reg) hart_id) }
     hart_id
 }
 

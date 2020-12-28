@@ -33,6 +33,7 @@ pub const SBI_IMPLEMENTATION_VERSION: usize = 1;
 
 /// The unique identifier for the base extension.
 pub const BASE_EXTENSION_ID: u32 = 0x10;
+/// The unique identifier for the timer extension.
 pub const TIMER_EXTENSION_ID: u32 = 0x54494D45;
 
 /// A list of extensions that are supported by this

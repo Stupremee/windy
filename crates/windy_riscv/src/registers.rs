@@ -9,6 +9,22 @@ pub use sip::sip;
 pub mod mie;
 pub use mie::mie;
 
+pub mod mstatus;
+pub use mstatus::mstatus;
+
+/// The `mepc` CSR.
+pub mod mepc {
+    read_csr!(
+        /// Reads the raw value from the `mepc` register.
+        pub 0x341
+    );
+
+    write_csr!(
+        /// Writes the raw value into the `mepc` register.
+        pub 0x341
+    );
+}
+
 /// The `mtvec` CSR.
 pub mod mtvec {
     read_csr!(
@@ -40,5 +56,12 @@ pub mod mimpid {
     read_csr!(
         /// Reads the raw value from the `mimpid` register.
         pub 0xF13
+    );
+}
+
+pub mod mhartid {
+    read_csr!(
+        /// Reads the raw value from the `mhartid` register.
+        pub 0xF14
     );
 }
