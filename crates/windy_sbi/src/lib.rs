@@ -23,6 +23,9 @@ compile_error!("Windy can only run on systems that have atomic support");
 // pub use platform::Platform;
 
 pub mod base;
+pub mod hsm;
+pub mod ipi;
+pub mod timer;
 
 /// The result of a SBI call.
 pub type SbiResult<T> = core::result::Result<T, Error>;
@@ -83,7 +86,7 @@ impl Error {
 
     /// Checks if the `err_code` is `0`, which is successful and thus returns `Ok(value)`,
     /// otherwise the specified error will be returned.
-    pub fn from_sbi_call(value: usize, err_code: isize) -> SbiResult<usize> {
+    pub fn from_sbi_call<T>(value: T, err_code: isize) -> SbiResult<T> {
         match err_code {
             0 => Ok(value),
             code => Err(Error::from_code(code)),
