@@ -1,9 +1,5 @@
 //! Platform specific functions and traits.
 
-use spin::Mutex;
-
-static GLOBAL_PLATFORM: Mutex<Option<Platform>> = Mutex::new(None);
-
 /// The `Platform` specifies function callbacks that are used in
 /// the SBI handler.
 ///
@@ -19,9 +15,4 @@ pub struct Platform {
     /// Must be the maximum, exclusie hart id, so that `0..hart_count` is the
     /// range of all available harts.
     pub hart_count: usize,
-}
-
-/// Returns a referencet to the Mutex-locked global platform.
-pub(crate) fn global() -> &'static Mutex<Option<Platform>> {
-    &GLOBAL_PLATFORM
 }

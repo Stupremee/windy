@@ -29,7 +29,6 @@ unsafe extern "C" fn kinit() -> ! {
         for _ in 0..100 {}
     }
 
-    windy_sbi::install_sbi_handler(platform);
     asm!("ecall");
     for _ in 0..1000 {}
     arch::exit(1)

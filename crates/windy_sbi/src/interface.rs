@@ -1,13 +1,14 @@
 //! Implementation of the SBI extensions and the actual SBI
 //! method execution.
 
-use super::{Error, SbiResult};
+use super::{Error, Platform, SbiResult};
 use windy_riscv::{
     prelude::*,
     registers::{
         marchid, mimpid, mvendorid,
         sip::{sip, SIP},
     },
+    trap::{Trap, TrapFrame},
 };
 
 /// The major version of the SBI specification that is implemented
@@ -40,15 +41,80 @@ pub const TIMER_EXTENSION_ID: u32 = 0x54494D45;
 /// implementation.
 pub const SUPPORTED_EXTENSIONS: &[u32] = &[BASE_EXTENSION_ID, TIMER_EXTENSION_ID];
 
+/// Handles an `ecall` trap
+///
+/// To enable the use of the SBI, you have to call this function in your
+/// trap handler in M-Mode. The returned value contains the new `mepc`,
+/// which should be set to the returned value if it's `Some`, otherwise
+/// the SBI call was invalid.
+///
+/// This function will write the `a0` and `a1` registers inside the trap frame to
+/// return error/value, so don't modify it afterwards.
+///
+/// # Example
+/// ```ignore
+/// const PLATFORM: windy_sbi::Platform = ...;
+///
+/// #[no_mangle]
+/// unsafe extern "C" fn __rust_sbi_trap_handler(
+///     frame: &mut TrapFrame,
+///     cause: usize,
+///     epc: usize,
+/// ) -> usize {
+///     if let Some(new_epc) = windy_sbi::ecall(PLATFORM, frame, cause, epc) {
+///         new_epc
+///     } else {
+///         // handle trap that was not caused by `ecall`.
+///     }
+/// }
+/// ```
+pub fn ecall(
+    platform: &Platform,
+    frame: &mut TrapFrame,
+    cause: usize,
+    epc: usize,
+) -> Option<usize> {
+    if let Some(Trap::SupervisorModeEnvironmentCall) | Some(Trap::MachineModeEnvironmentCall) =
+        Trap::from_cause(cause)
+    {
+        let eid = frame.a7() as u32;
+        let fid = frame.a6() as u32;
+
+        let args = [frame.a0(), frame.a1(), frame.a2(), frame.a3()];
+        let result = handle_raw_ecall(platform, eid, fid, args);
+
+        match result {
+            Ok(value) => {
+                // set the error code to `0`, aka successful
+                *frame.a0_ref() = 0;
+                // store the value in `a1`
+                *frame.a1_ref() = value;
+            }
+            Err(err) => {
+                // store the error code in `a0`.
+                *frame.a0_ref() = err.code() as usize;
+                // set the value to `0`
+                *frame.a1_ref() = 0;
+            }
+        };
+
+        // Skip the `ecall` instruction that caused this interrupt
+        return Some(epc + 4);
+    }
+
+    // We didn't hit an `ecall`, so we will not handle the trap
+    None
+}
+
 /// Handles a SBI call that was caused by an `ecall` interrupt.
-pub(crate) fn handle_ecall(eid: u32, fid: u32, args: [usize; 4]) -> SbiResult<usize> {
+fn handle_raw_ecall(platform: &Platform, eid: u32, fid: u32, args: [usize; 4]) -> SbiResult<usize> {
     if !SUPPORTED_EXTENSIONS.contains(&eid) {
         return Err(Error::NotSupported);
     }
 
     match eid {
         BASE_EXTENSION_ID => handle_base_ecall(fid, args[0]),
-        TIMER_EXTENSION_ID => handle_timer_ecall(fid, args[0] as u64).map(|_| 0),
+        TIMER_EXTENSION_ID => handle_timer_ecall(platform, fid, args[0] as u64).map(|_| 0),
         _ => Err(Error::NotSupported),
     }
 }
@@ -79,23 +145,16 @@ fn handle_base_ecall(fid: u32, arg: usize) -> SbiResult<usize> {
     }
 }
 
-fn handle_timer_ecall(fid: u32, stime_value: u64) -> SbiResult<()> {
+fn handle_timer_ecall(platform: &Platform, fid: u32, stime_value: u64) -> SbiResult<()> {
     // The timer extension only has a single function with id `0x00`.
     if fid != 0x00 {
         return Err(Error::NotSupported);
     }
 
-    let platform = crate::platform::global();
-    match &*platform.lock() {
-        Some(platform) => {
-            // Program the clock for the next event.
-            (platform.set_timer)(stime_value);
-            // clear the timer interrupt pending bit.
-            sip().modify(SIP::STIP::CLEAR);
+    // Program the clock for the next event.
+    (platform.set_timer)(stime_value);
+    // clear the timer interrupt pending bit.
+    sip().modify(SIP::STIP::CLEAR);
 
-            Ok(())
-        }
-        // there's no global platform set, so return `NotSupported`.
-        None => Err(Error::NotSupported),
-    }
+    Ok(())
 }

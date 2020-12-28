@@ -7,4 +7,3 @@ edition = "2018"
 
 [dependencies]
 windy_riscv = { path = "../windy_riscv" }
-spin = "0.7.0"

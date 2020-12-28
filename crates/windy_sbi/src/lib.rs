@@ -17,7 +17,7 @@ compile_error!("Windy can only run on systems that have atomic support");
 
 // mod hart_mask;
 mod interface;
-mod trap_handler;
+pub use interface::ecall;
 
 pub mod platform;
 pub use platform::Platform;
@@ -32,36 +32,11 @@ use windy_riscv::{
     registers::{
         mepc, mhartid,
         mstatus::{self, MSTATUS},
-        mtvec,
     },
 };
 
 /// The result of a SBI call.
 pub type SbiResult<T> = core::result::Result<T, Error>;
-
-/// Initializes the `SBI` backend that will run in M-Mode.
-///
-/// This function will write the address of the trap handler
-/// into the `mtvec` register. It will also set a global
-/// [`Platform`] instance, which can not be replaced, even if you call
-/// this function again.
-///
-/// Just call this function at the start of one your harts.
-///
-/// # Safety
-///
-/// This functions has to be run in M-Mode.
-pub unsafe fn install_sbi_handler(platform: Platform) {
-    let global = platform::global();
-
-    let mut guard = global.lock();
-    if guard.is_none() {
-        *guard = Some(platform);
-    }
-
-    let addr = trap_handler::trap_handler_address();
-    mtvec::write(addr);
-}
 
 /// Standard SBI errors that can occurr while executing a
 /// SBI call.
