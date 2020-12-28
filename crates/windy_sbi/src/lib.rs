@@ -16,24 +16,13 @@ compile_error!("Windy can only run on 64 bit systems");
 compile_error!("Windy can only run on systems that have atomic support");
 
 // mod hart_mask;
-mod interface;
-pub use interface::ecall;
+// mod interface;
+// pub use interface::ecall;
 
-pub mod platform;
-pub use platform::Platform;
+// pub mod platform;
+// pub use platform::Platform;
 
-pub use interface::{
-    SBI_IMPLEMENTATION_ID, SBI_IMPLEMENTATION_VERSION, SBI_SPEC_MAJOR, SBI_SPEC_MINOR,
-    SBI_SPEC_VERSION, SUPPORTED_EXTENSIONS,
-};
-
-use windy_riscv::{
-    prelude::*,
-    registers::{
-        mepc, mhartid,
-        mstatus::{self, MSTATUS},
-    },
-};
+pub mod base;
 
 /// The result of a SBI call.
 pub type SbiResult<T> = core::result::Result<T, Error>;
@@ -92,61 +81,12 @@ impl Error {
         }
     }
 
-    /// Reads the error code from `a0` and the value from `a1`,
-    /// checks if an error occurred, and returns either `Ok(value)` or the error.
-    ///
-    /// # Safety
-    ///
-    /// This function must be called after a SBI call.
-    pub unsafe fn from_sbi_call() -> SbiResult<usize> {
-        let (value, err_code);
-        asm!("mv {}, a0", "mv {}, a1", out(reg) err_code, out(reg) value);
-
+    /// Checks if the `err_code` is `0`, which is successful and thus returns `Ok(value)`,
+    /// otherwise the specified error will be returned.
+    pub fn from_sbi_call(value: usize, err_code: isize) -> SbiResult<usize> {
         match err_code {
             0 => Ok(value),
             code => Err(Error::from_code(code)),
         }
     }
-}
-
-/// Pointer to a function that can be used as the entrypoint when
-/// entering another privilege mode using [`enter_privileged`].
-///
-/// It takes the `hart_id` and a pointer to the device tree as arguments.
-pub type PrivilegeEntry = fn(usize, *const u8) -> !;
-
-/// Represents any privilige mode, that can be jumped into using
-/// [`enter_privileged`].
-#[derive(Debug, Clone, Copy)]
-pub enum PrivilegeMode {
-    Machine,
-    Supervisor,
-    User,
-}
-
-/// Enter a lower privilege mode from M-Mode.
-///
-/// This must be called from every hart that is supposed to enter lower privilege mode.
-pub unsafe fn enter_privileged(
-    mode: PrivilegeMode,
-    entry: PrivilegeEntry,
-    device_tree: *const u8,
-) -> ! {
-    // write the address of the entrypoint into `mepc`,
-    // so `mret` knows where to jump to
-    mepc::write(entry as _);
-
-    // write the target privilege mode into `mstatus`.
-    let mstatus = mstatus::mstatus();
-    match mode {
-        PrivilegeMode::Machine => mstatus.modify(MSTATUS::MPP::M),
-        PrivilegeMode::Supervisor => mstatus.modify(MSTATUS::MPP::S),
-        PrivilegeMode::User => mstatus.modify(MSTATUS::MPP::U),
-    }
-
-    // read hart id which will be given as an argument to the entry point
-    let hart_id = mhartid::read();
-
-    // now execute the `mret` instruction and set the argument registers
-    asm!("mret", in("a0") hart_id, in("a1") device_tree, options(noreturn))
 }

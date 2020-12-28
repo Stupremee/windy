@@ -16,20 +16,12 @@ mod panic;
 #[macro_use]
 mod macros;
 
-use windy_sbi::Platform;
-
 #[no_mangle]
-unsafe extern "C" fn kinit() -> ! {
-    let platform = Platform {
-        set_timer: |_| {},
-        hart_count: 1,
-    };
-
-    if arch::hart_id() != 0 {
-        for _ in 0..100 {}
+unsafe extern "C" fn kinit(hart_id: usize, _dvt: *const u8) -> ! {
+    if hart_id != 0 {
+        dbg!();
+        arch::wait_forever();
     }
 
-    asm!("ecall");
-    for _ in 0..1000 {}
     arch::exit(1)
 }
