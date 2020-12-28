@@ -19,9 +19,9 @@ mod macros;
 #[no_mangle]
 unsafe extern "C" fn kinit(hart_id: usize, _dvt: *const u8) -> ! {
     if hart_id != 0 {
-        dbg!();
         arch::wait_forever();
     }
 
-    arch::exit(1)
+    windy_sbi::system::shutdown();
+    arch::wait_forever()
 }

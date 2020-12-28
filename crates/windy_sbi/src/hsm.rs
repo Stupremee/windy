@@ -1,7 +1,6 @@
 //! Function to access the SBI HSM (Hart State Management) extension functionality.
 
 use super::{Error, SbiResult};
-use core::convert::Infallible;
 
 /// The unique id of the HSM extension.
 pub const EXTENSION_ID: u32 = 0x48534D;
@@ -28,7 +27,7 @@ pub fn start(hart_id: usize, start_addr: usize, arg: usize) -> SbiResult<()> {
 /// Stops the current hart.
 ///
 /// This method must be called with Supervisor and User interrupts disabled.
-pub fn stop() -> SbiResult<Infallible> {
+pub fn stop() -> SbiResult<!> {
     let err_code: usize;
     unsafe {
         asm!("ecall",
