@@ -10,6 +10,10 @@ let
     targets = [ "riscv64gc-unknown-none-elf" ];
   };
 
+  pkgsRiscv =
+    import <nixpkgs> { crossSystem = { config = "riscv64-none-elf"; }; };
+  opensbi = pkgsRiscv.callPackage ./nix/opensbi.nix { };
+
   runQemu = pkgs.writers.writeBashBin "run-qemu" ''
     ${pkgs.qemu}/bin/qemu-system-riscv64 \
         -machine virt \
@@ -19,11 +23,10 @@ let
         -nographic \
         -serial mon:stdio \
         -d guest_errors,trace:riscv_trap,trace:sifive_gpio_write,trace:pmpcfg_csr_write,trace:pmpaddr_csr_write,int,trace:exynos_uart_read \
-        -bios none \
+        -bios ${opensbi}/platform/fw_jump.elf \
         -gdb tcp::1234 \
         -kernel "$@"
   '';
-
 in pkgs.mkShell {
   name = "rust-shell";
   nativeBuildInputs = with pkgs;

@@ -16,12 +16,9 @@ mod panic;
 #[macro_use]
 mod macros;
 
-#[no_mangle]
-unsafe extern "C" fn kinit(hart_id: usize, _dvt: *const u8) -> ! {
-    if hart_id != 0 {
-        arch::wait_forever();
-    }
+use core::fmt::Write;
 
-    windy_sbi::system::shutdown();
-    arch::wait_forever()
+#[no_mangle]
+unsafe extern "C" fn kinit(hart_id: usize, fdt: *const u8) -> ! {
+    loop {}
 }

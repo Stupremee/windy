@@ -9,7 +9,8 @@ ENTRY(_boot)
 
 MEMORY
 {
-  ram : ORIGIN = 0x80000000, LENGTH = 128M
+  /* Add 0x200000 here because OpenSBI will jump to this address since we are using fw_jump */
+  ram : ORIGIN = 0x80000000 + 0x200000, LENGTH = 128M
 }
 
 SECTIONS

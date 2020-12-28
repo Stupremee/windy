@@ -1,4 +1,7 @@
 /// The entrypoint for the whole kernel.
+///
+/// `a0` = hart id
+/// `a1` = pointer to device tree
 #[naked]
 #[no_mangle]
 #[link_section = ".text.init"]
@@ -13,9 +16,9 @@ pub unsafe extern "C" fn _boot() -> ! {
         "    la gp, __global_pointer",
         ".option pop",
         // ---------------------------------
-        // Disable paging
+        // Disable interrupts
         // ---------------------------------
-        "csrw satp, zero",
+        "csrw sie, zero",
         // ---------------------------------
         // Set `bss` to zero
         // ---------------------------------
@@ -45,10 +48,10 @@ pub unsafe extern "C" fn _boot() -> ! {
         //
         // ---------------------------------
         "    la sp, __stack_start",
-        // Load the stack size into `a0`
+        // Load the stack size into `t0`
         "    li t0, 0x10000",
-        // Load the hardid into `a1`
-        "    csrr t1, mhartid",
+        // Load the hart id into `t1`
+        "    mv t1, a0",
         // Increment it by one because hart ids start with zero.
         "    addi t1, t1, 1",
         // Multiply the stack size with the hart id to get
