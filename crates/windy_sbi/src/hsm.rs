@@ -10,18 +10,19 @@ pub const EXTENSION_ID: u32 = 0x48534D;
 /// The hart will start execution at the given `start_addr` and the raw value of `arg`
 /// will be put into `a1`.
 pub fn start(hart_id: usize, start_addr: usize, arg: usize) -> SbiResult<()> {
-    let err_code: usize;
+    let err_code: isize;
     unsafe {
-        asm!("ecall",
-            in("a7") EXTENSION_ID,
-            in("a6") 0x00,
-
-            inout("a0") hart_id => err_code,
+        asm!(
+            "ecall",
+            in("a0") hart_id,
             in("a1") start_addr,
             in("a2") arg,
+            inout("a6") 0 => _,
+            inout("a7") EXTENSION_ID => _,
+            lateout("a0") err_code,
         );
     }
-    Error::from_sbi_call((), err_code as isize)
+    Error::from_sbi_call((), err_code)
 }
 
 /// Stops the current hart.

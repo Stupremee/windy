@@ -16,9 +16,7 @@ mod panic;
 #[macro_use]
 mod macros;
 
-use core::fmt::Write;
-
 #[no_mangle]
-unsafe extern "C" fn kinit(hart_id: usize, fdt: *const u8) -> ! {
-    loop {}
+unsafe extern "C" fn kinit(_hart_id: usize, _fdt: *const u8) -> ! {
+    arch::wait_forever()
 }

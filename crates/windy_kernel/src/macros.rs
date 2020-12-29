@@ -4,8 +4,8 @@
 
 // FIXME: REPLACE WITH ACTUAL `dbg` MACRO
 macro_rules! dbg {
-    () => {{
+    ($c:expr) => {{
         #[allow(unused_unsafe)]
-        let _ = unsafe { *(0x10000000 as *mut u8) = '*' as u8 };
+        let _ = unsafe { *(0x10000000 as *mut u8) = $c };
     }};
 }
