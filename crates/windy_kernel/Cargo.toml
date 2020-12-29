@@ -8,6 +8,7 @@ edition = "2018"
 [dependencies]
 windy_sbi = { path = "../windy_sbi" }
 windy_riscv = { path = "../windy_riscv" }
+windy_devicetree = { path = "../windy_devicetree" }
 
 [features]
 default = ["virt"]

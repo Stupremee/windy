@@ -6,3 +6,4 @@ authors = ["Justus K <justus.k@protonmail.com>"]
 edition = "2018"
 
 [dependencies]
+cstr_core = { version = "0.2.2", default-features = false }
