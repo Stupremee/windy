@@ -26,10 +26,9 @@ use windy_devicetree::DeviceTree;
 unsafe extern "C" fn kinit(_hart_id: usize, fdt: *const u8) -> ! {
     let mut uart = Uart::new();
     let tree = DeviceTree::new(fdt).unwrap();
+    let node = tree.node("/cpus");
 
-    for s in tree.strings() {
-        write!(uart, "{}\n", s.to_str().unwrap()).unwrap();
-    }
+    write!(uart, "{:?}\n", node).unwrap();
 
     arch::wait_forever()
 }
