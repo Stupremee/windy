@@ -5,7 +5,7 @@ use crate::{
     parse::{Token, TokenIter},
     PHandle,
 };
-use core::{cell::Cell, convert::TryInto, fmt::Write, marker::PhantomData};
+use core::{cell::Cell, convert::TryInto, marker::PhantomData};
 use cstr_core::CStr;
 
 const MAGIC: u32 = 0xD00DFEED;
@@ -186,6 +186,7 @@ impl<'tree> Iterator for Items<'tree> {
                 self.level += 1;
 
                 let node = Node {
+                    tree: self.tree,
                     data: node_buf,
                     name: node.name,
                     level,
@@ -218,8 +219,10 @@ pub enum NodeOrProperty<'tree> {
 
 /// A node that is inside a device tree.
 pub struct Node<'tree> {
+    tree: &'tree DeviceTree<'tree>,
     data: &'tree [u8],
     name: &'tree CStr,
+
     /// The level of this node inside the tree.
     ///
     /// Root node is level `0`,
@@ -250,6 +253,7 @@ impl<'tree> Node<'tree> {
     /// of this node, and not the children of the children.
     pub fn children(&self) -> Children<'tree> {
         Children {
+            tree: self.tree,
             iter: TokenIter::new(self.data),
             level: self.level,
             child_level: self.level + 1,
@@ -272,7 +276,12 @@ impl<'tree> Node<'tree> {
     /// Return an iterator that iterates over the properties
     /// of this node.
     pub fn props(&self) -> Properties<'tree> {
-        todo!()
+        Properties {
+            tree: self.tree,
+            iter: TokenIter::new(self.data),
+            level: self.level,
+            node_level: self.level,
+        }
     }
 }
 
@@ -341,6 +350,7 @@ impl<'tree> Iterator for Nodes<'tree> {
 
 /// An iterator over all children of a node.
 pub struct Children<'tree> {
+    tree: &'tree DeviceTree<'tree>,
     iter: TokenIter<'tree>,
     level: u8,
     /// The level of the children nodes
@@ -370,6 +380,7 @@ impl<'tree> Iterator for Children<'tree> {
                 if level == self.child_level {
                     let data = &self.iter.buf[self.iter.offset..];
                     let node = Node {
+                        tree: self.tree,
                         data,
                         name: node.name,
                         level,
@@ -402,6 +413,9 @@ impl<'tree> Iterator for Children<'tree> {
 #[derive(Clone)]
 pub struct Properties<'tree> {
     iter: TokenIter<'tree>,
+    tree: &'tree DeviceTree<'tree>,
+    level: u8,
+    node_level: u8,
 }
 
 impl<'tree> Iterator for Properties<'tree> {
@@ -410,8 +424,26 @@ impl<'tree> Iterator for Properties<'tree> {
     fn next(&mut self) -> Option<Self::Item> {
         let next = self.iter.next()?;
         match next {
-            NodeOrProperty::Property(prop) => Some(prop),
-            NodeOrProperty::Node(_) => self.next(),
+            Token::BeginNode(_) => {
+                self.level += 1;
+                self.next()
+            }
+            Token::Property(prop) => {
+                if self.node_level == self.level - 1 {
+                    let name = self.tree.strings().string_at(prop.name_offset)?;
+                    let prop = Property {
+                        name,
+                        data: prop.data,
+                    };
+                    Some(prop)
+                } else {
+                    None
+                }
+            }
+            Token::EndNode => {
+                self.level -= 1;
+                self.next()
+            }
         }
     }
 }
