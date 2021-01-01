@@ -5,7 +5,7 @@ use crate::{
     parse::{Token, TokenIter},
     PHandle,
 };
-use core::{cell::Cell, convert::TryInto, marker::PhantomData};
+use core::{cell::Cell, convert::TryInto, fmt::Write, marker::PhantomData};
 use cstr_core::CStr;
 
 const MAGIC: u32 = 0xD00DFEED;
@@ -52,8 +52,8 @@ impl<'tree> DeviceTree<'tree> {
 
     /// Return an iterator over all nodes that are at the given `level`
     /// inside the tree structure.
-    pub fn nodes_at_level(&'tree self, level: u8) -> Option<impl Iterator<Item = Node<'tree>>> {
-        Some(self.nodes()?.filter(move |node| node.level == level))
+    pub fn nodes_at_level(&'tree self, level: u8) -> impl Iterator<Item = Node<'tree>> {
+        self.nodes().filter(move |node| node.level == level)
     }
 
     /// Tries to find a node with the given path inside this device tree.
@@ -77,7 +77,7 @@ impl<'tree> DeviceTree<'tree> {
         let mut current_part = parts.next()?;
         let mut current_level = 0;
 
-        for node in self.nodes()? {
+        for node in self.nodes() {
             // check if the node is at the current level,
             // and if the name of the node matches the current part
             // of the full path
@@ -102,39 +102,34 @@ impl<'tree> DeviceTree<'tree> {
     }
 
     /// Returns an iterator over all the nodes of this tree.
-    pub fn nodes(&'tree self) -> Option<impl Iterator<Item = Node<'tree>>> {
-        let iter = self.items()?.filter_map(|item| match item {
-            NodeOrProperty::Node(node) => Some(node),
-            _ => None,
-        });
-        Some(iter)
+    pub fn nodes(&'tree self) -> Nodes<'tree> {
+        Nodes { iter: self.items() }
     }
 
     /// Returns an iterator over all nodes and properties of this device tree.
-    pub fn items(&'tree self) -> Option<Items<'tree>> {
+    pub fn items(&'tree self) -> Items<'tree> {
         // get the raw structure block bytes
-        let start = self.struct_offset()? as usize;
-        let size = self.struct_size()? as usize;
-        let buf = self.buf.get(start..start + size)?;
+        let start = self.struct_offset().unwrap() as usize;
+        let size = self.struct_size().unwrap() as usize;
+        let buf = &self.buf[start..start + size];
 
         // create the token iterator
         let tokens = TokenIter::new(buf);
 
-        Some(Items {
+        Items {
             tree: self,
             iter: tokens,
-            props_only: 0,
             level: 0,
-        })
+        }
     }
 
     /// Return an iterator over the string table.
-    pub fn strings(&'tree self) -> Option<Strings<'tree>> {
+    pub fn strings(&'tree self) -> Strings<'tree> {
         // get the raw table in bytes
-        let start = self.strings_offset()? as usize;
-        let size = self.strings_size()? as usize;
-        let buf = self.buf.get(start..start + size)?;
-        Some(Strings { table: buf })
+        let start = self.strings_offset().unwrap() as usize;
+        let size = self.strings_size().unwrap() as usize;
+        let buf = &self.buf[start..start + size];
+        Strings { table: buf }
     }
 
     /// Size of the strings block.
@@ -170,14 +165,6 @@ impl<'tree> DeviceTree<'tree> {
 pub struct Items<'tree> {
     iter: TokenIter<'tree>,
     tree: &'tree DeviceTree<'tree>,
-    /// Indicates if this Items parse should stop
-    /// after the first end node token and only
-    /// emits the properties for one node.
-    ///
-    /// `0`: normal mode, emit everything
-    /// `1`: only parse properties of one node
-    /// `2`: stop to parse and return `None` every time
-    props_only: u8,
     /// The current node level
     level: u8,
 }
@@ -186,10 +173,9 @@ impl<'tree> Iterator for Items<'tree> {
     type Item = NodeOrProperty<'tree>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        // check if this iterator has stopped
-        if self.props_only == 2 {
-            return None;
-        }
+        // create a new `TokenIter` that will iterator only over the
+        // properties of the new node, and the children of this node
+        let node_buf = &self.iter.buf[self.iter.offset..];
 
         let token = self.iter.next()?;
 
@@ -199,27 +185,16 @@ impl<'tree> Iterator for Items<'tree> {
                 let level = self.level;
                 self.level += 1;
 
-                // create a new `TokenIter` that will iterator only over the
-                // properties of the new node
-                let props_buf = &self.iter.buf[self.iter.offset..];
-                let props = TokenIter::new(props_buf);
-                let props = Items {
-                    iter: props,
-                    tree: self.tree,
-                    props_only: 1,
-                    level,
-                };
-
                 let node = Node {
+                    data: node_buf,
                     name: node.name,
-                    props: Properties { iter: props },
                     level,
                 };
                 Some(NodeOrProperty::Node(node))
             }
             Token::Property(prop) => {
                 // get the name of this property from the string table
-                let name = self.tree.strings()?.string_at(prop.name_offset)?;
+                let name = self.tree.strings().string_at(prop.name_offset)?;
 
                 let prop = Property {
                     name,
@@ -227,32 +202,10 @@ impl<'tree> Iterator for Items<'tree> {
                 };
                 Some(NodeOrProperty::Property(prop))
             }
-            Token::EndNode if self.props_only == 1 => {
-                self.props_only = 2;
-                None
-            }
             Token::EndNode => {
                 self.level -= 1;
                 self.next()
             }
-        }
-    }
-}
-
-/// Iterator over all properties of a single node.
-#[derive(Clone)]
-pub struct Properties<'tree> {
-    iter: Items<'tree>,
-}
-
-impl<'tree> Iterator for Properties<'tree> {
-    type Item = Property<'tree>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let next = self.iter.next()?;
-        match next {
-            NodeOrProperty::Property(prop) => Some(prop),
-            NodeOrProperty::Node(_) => self.next(),
         }
     }
 }
@@ -265,20 +218,42 @@ pub enum NodeOrProperty<'tree> {
 
 /// A node that is inside a device tree.
 pub struct Node<'tree> {
+    data: &'tree [u8],
     name: &'tree CStr,
-    props: Properties<'tree>,
     /// The level of this node inside the tree.
     ///
     /// Root node is level `0`,
     /// `/cpus` is level `1`,
     /// and `/cpus/cpu0` is level `2`
-    pub level: u8,
+    level: u8,
 }
 
 impl<'tree> Node<'tree> {
     /// Returns the name of this `Node`
     pub fn name(&self) -> &'tree CStr {
         self.name
+    }
+
+    /// Returns the level of this `Node` inside the tree
+    ///
+    /// `/` is level `0`,
+    /// `/cpus` is level `1`,
+    /// `/cpus/cpu0` is level `2`
+    /// and so on...
+    pub fn level(&self) -> u8 {
+        self.level
+    }
+
+    /// Returns an iterator over all children of this node.
+    ///
+    /// Note that the iterator only iterates over the children
+    /// of this node, and not the children of the children.
+    pub fn children(&self) -> Children<'tree> {
+        Children {
+            iter: TokenIter::new(self.data),
+            level: self.level,
+            child_level: self.level + 1,
+        }
     }
 
     /// Tries to convert the name of this `Node` into utf8 and
@@ -297,7 +272,7 @@ impl<'tree> Node<'tree> {
     /// Return an iterator that iterates over the properties
     /// of this node.
     pub fn props(&self) -> Properties<'tree> {
-        self.props.clone()
+        todo!()
     }
 }
 
@@ -344,6 +319,100 @@ impl<'tree> Property<'tree> {
     /// Try to interpret the data of this property as a `PHandle`.
     pub fn as_phandle(&self) -> Option<PHandle> {
         self.as_u32().map(Into::into)
+    }
+}
+
+/// An iterator over all nodes inside a tree.
+pub struct Nodes<'tree> {
+    iter: Items<'tree>,
+}
+
+impl<'tree> Iterator for Nodes<'tree> {
+    type Item = Node<'tree>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let next = self.iter.next()?;
+        match next {
+            NodeOrProperty::Node(node) => Some(node),
+            _ => self.next(),
+        }
+    }
+}
+
+/// An iterator over all children of a node.
+pub struct Children<'tree> {
+    iter: TokenIter<'tree>,
+    level: u8,
+    /// The level of the children nodes
+    child_level: u8,
+}
+
+impl<'tree> Iterator for Children<'tree> {
+    type Item = Node<'tree>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        // if level is `0`, it means that this
+        // iterator has finished and shouldn't return any
+        // new nodes.
+        if self.child_level == 0 {
+            return None;
+        }
+
+        let tok = self.iter.next()?;
+        match tok {
+            Token::BeginNode(node) => {
+                // store the current level and increase it afterwards
+                let level = self.level;
+                self.level += 1;
+
+                // if the node is in the level of the children,
+                // return it, otherwise go to next token
+                if level == self.child_level {
+                    let data = &self.iter.buf[self.iter.offset..];
+                    let node = Node {
+                        data,
+                        name: node.name,
+                        level,
+                    };
+                    Some(node)
+                } else {
+                    self.next()
+                }
+            }
+            // properties are just ignored
+            Token::Property(_) => self.next(),
+            Token::EndNode => {
+                // if this is the end node of our parent,
+                // this is true and we stop the iterator
+                if self.level == self.child_level {
+                    // stop the iterator
+                    self.child_level = 0;
+                    None
+                } else {
+                    self.level -= 1;
+                    // otherwise we continue with the next element
+                    self.next()
+                }
+            }
+        }
+    }
+}
+
+/// Iterator over all properties of a single node.
+#[derive(Clone)]
+pub struct Properties<'tree> {
+    iter: TokenIter<'tree>,
+}
+
+impl<'tree> Iterator for Properties<'tree> {
+    type Item = Property<'tree>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let next = self.iter.next()?;
+        match next {
+            NodeOrProperty::Property(prop) => Some(prop),
+            NodeOrProperty::Node(_) => self.next(),
+        }
     }
 }
 
