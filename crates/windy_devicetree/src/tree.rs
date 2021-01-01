@@ -1,8 +1,11 @@
 //! The central structure to represent a flattened device tree.
 //! Most of the operations on a tree are done using iterators.
 
-use crate::parse::{Token, TokenIter};
-use core::{convert::TryInto, num::NonZeroUsize};
+use crate::{
+    parse::{Token, TokenIter},
+    PHandle,
+};
+use core::convert::TryInto;
 use cstr_core::CStr;
 
 const MAGIC: u32 = 0xD00DFEED;
@@ -62,10 +65,7 @@ impl<'tree> DeviceTree<'tree> {
         let start = self.strings_offset()? as usize;
         let size = self.strings_size()? as usize;
         let buf = self.buf.get(start..start + size)?;
-        Some(Strings {
-            table: buf,
-            tree: self,
-        })
+        Some(Strings { table: buf })
     }
 
     /// Size of the strings block.
@@ -117,7 +117,10 @@ impl<'tree> Iterator for Items<'tree> {
                 // get the name of this property from the string table
                 let name = self.tree.strings()?.string_at(prop.name_offset)?;
 
-                let prop = Property { name };
+                let prop = Property {
+                    name,
+                    data: prop.data,
+                };
                 Some(NodeOrProperty::Property(prop))
             }
             Token::EndNode => self.next(),
@@ -142,6 +145,67 @@ pub struct Node<'tree> {
 #[derive(Debug)]
 pub struct Property<'tree> {
     name: &'tree CStr,
+    data: &'tree [u8],
+}
+
+impl<'tree> Property<'tree> {
+    /// Returns the name of this property.
+    pub fn name(&self) -> &'tree CStr {
+        self.name
+    }
+
+    /// Returns the data of this property.
+    ///
+    /// The returned struct is a wrapper around the raw
+    /// bytes and can be used to interpret the data
+    /// as different types, that are specified by the spec.
+    pub fn data(&self) -> PropertyData<'tree> {
+        PropertyData { raw: self.data }
+    }
+}
+
+/// Represents the raw data of a property.
+///
+/// This struct can be used to interpret the raw data
+/// using the different types specified by the DeviceTree spec.
+#[derive(Debug)]
+pub struct PropertyData<'tree> {
+    raw: &'tree [u8],
+}
+
+impl<'tree> PropertyData<'tree> {
+    /// Returns the raw bytes of this property data.
+    pub fn as_bytes(&self) -> &'tree [u8] {
+        self.raw
+    }
+
+    /// Try to interpret this data as a big endian `u32`.
+    pub fn as_u32(&self) -> Option<u32> {
+        // try to read the big endian `u32` from the data
+        Some(u32::from_be_bytes(self.raw.try_into().ok()?))
+    }
+
+    /// Try to interpret this data as a big endian `u64`.
+    pub fn as_u64(&self) -> Option<u64> {
+        // try to read the big endian `u64` from the data
+        Some(u64::from_be_bytes(self.raw.try_into().ok()?))
+    }
+
+    /// Try to interpret this data as a nul-terminated string.
+    pub fn as_str(&self) -> Option<&'tree CStr> {
+        crate::next_cstr_from_bytes(self.raw)
+    }
+
+    /// Returns an iterator that will try to interpret this data
+    /// as a list of strings.
+    pub fn as_strings(&self) -> Strings<'tree> {
+        Strings { table: self.raw }
+    }
+
+    /// Try to interpret this data as a `PHandle` value string.
+    pub fn as_phandle(&self) -> Option<PHandle> {
+        self.as_u32().map(Into::into)
+    }
 }
 
 /// An iterator over all the strings inside the string table.
@@ -149,7 +213,6 @@ pub struct Strings<'tree> {
     /// The `table` starts where the next string starts,
     /// and ends at the end of the string table.
     table: &'tree [u8],
-    tree: &'tree DeviceTree<'tree>,
 }
 
 impl<'tree> Strings<'tree> {

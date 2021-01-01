@@ -8,6 +8,22 @@ pub use tree::*;
 
 use cstr_core::CStr;
 
+///  A phandle is a way to reference another node in the devicetree.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct PHandle(u32);
+
+impl From<u32> for PHandle {
+    fn from(x: u32) -> Self {
+        Self(x)
+    }
+}
+
+impl Into<u32> for PHandle {
+    fn into(self) -> u32 {
+        self.0
+    }
+}
+
 /// Returns a reference to the next nul-terminated string
 /// inside the buffer.
 pub(crate) fn next_cstr_from_bytes(buf: &[u8]) -> Option<&CStr> {
