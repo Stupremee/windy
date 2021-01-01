@@ -5,15 +5,19 @@ use crate::{
     parse::{Token, TokenIter},
     PHandle,
 };
-use core::convert::TryInto;
+use core::{cell::Cell, convert::TryInto, marker::PhantomData};
 use cstr_core::CStr;
 
 const MAGIC: u32 = 0xD00DFEED;
 
 /// Representation of a flattened device tree.
+#[derive(Clone)]
 pub struct DeviceTree<'tree> {
     /// The raw data of the tree.
     buf: &'tree [u8],
+
+    // Is this really required?
+    _send_sync: PhantomData<Cell<u8>>,
 }
 
 impl<'tree> DeviceTree<'tree> {
@@ -40,7 +44,70 @@ impl<'tree> DeviceTree<'tree> {
 
         // create the slice and return the tree
         let buf = core::slice::from_raw_parts(ptr, size as usize);
-        Some(Self { buf })
+        Some(Self {
+            buf,
+            _send_sync: PhantomData,
+        })
+    }
+
+    /// Return an iterator over all nodes that are at the given `level`
+    /// inside the tree structure.
+    pub fn nodes_at_level(&'tree self, level: u8) -> Option<impl Iterator<Item = Node<'tree>>> {
+        Some(self.nodes()?.filter(move |node| node.level == level))
+    }
+
+    /// Tries to find a node with the given path inside this device tree.
+    ///
+    /// The path is a `/` separated list of node names, and must start with `/`
+    /// to indicate the root node.
+    ///
+    /// # Examples
+    /// - `/` => Root Node
+    /// - `/cpus` => CPUs Node
+    /// - `/cpus/cpu0` => Node of the 0th CPU
+    pub fn node(&'tree self, path: &str) -> Option<Node<'tree>> {
+        // path didn't start with root node
+        if !path.starts_with('/') {
+            return None;
+        }
+
+        // get every single part of the path.
+        let mut parts = path.split_terminator('/');
+
+        let mut current_part = parts.next()?;
+        let mut current_level = 0;
+
+        for node in self.nodes()? {
+            // check if the node is at the current level,
+            // and if the name of the node matches the current part
+            // of the full path
+            if node.level == current_level
+                && node
+                    .name()
+                    .to_str()
+                    .map_or(false, |name| name == current_part)
+            {
+                current_part = match parts.next() {
+                    Some(part) => part,
+                    // there are no parts left in the path,
+                    // so we found our node
+                    None => return Some(node),
+                };
+                current_level += 1;
+            }
+        }
+
+        // no node found
+        None
+    }
+
+    /// Returns an iterator over all the nodes of this tree.
+    pub fn nodes(&'tree self) -> Option<impl Iterator<Item = Node<'tree>>> {
+        let iter = self.items()?.filter_map(|item| match item {
+            NodeOrProperty::Node(node) => Some(node),
+            _ => None,
+        });
+        Some(iter)
     }
 
     /// Returns an iterator over all nodes and properties of this device tree.
@@ -56,6 +123,8 @@ impl<'tree> DeviceTree<'tree> {
         Some(Items {
             tree: self,
             iter: tokens,
+            props_only: 0,
+            level: 0,
         })
     }
 
@@ -97,20 +166,55 @@ impl<'tree> DeviceTree<'tree> {
 }
 
 /// Iterator over all nodes and properties of this device tree.
+#[derive(Clone)]
 pub struct Items<'tree> {
     iter: TokenIter<'tree>,
     tree: &'tree DeviceTree<'tree>,
+    /// Indicates if this Items parse should stop
+    /// after the first end node token and only
+    /// emits the properties for one node.
+    ///
+    /// `0`: normal mode, emit everything
+    /// `1`: only parse properties of one node
+    /// `2`: stop to parse and return `None` every time
+    props_only: u8,
+    /// The current node level
+    level: u8,
 }
 
 impl<'tree> Iterator for Items<'tree> {
     type Item = NodeOrProperty<'tree>;
 
     fn next(&mut self) -> Option<Self::Item> {
+        // check if this iterator has stopped
+        if self.props_only == 2 {
+            return None;
+        }
+
         let token = self.iter.next()?;
 
         match token {
             Token::BeginNode(node) => {
-                let node = Node { name: node.name };
+                // increase the node level
+                let level = self.level;
+                self.level += 1;
+
+                // create a new `TokenIter` that will iterator only over the
+                // properties of the new node
+                let props_buf = &self.iter.buf[self.iter.offset..];
+                let props = TokenIter::new(props_buf);
+                let props = Items {
+                    iter: props,
+                    tree: self.tree,
+                    props_only: 1,
+                    level,
+                };
+
+                let node = Node {
+                    name: node.name,
+                    props: Properties { iter: props },
+                    level,
+                };
                 Some(NodeOrProperty::Node(node))
             }
             Token::Property(prop) => {
@@ -123,26 +227,81 @@ impl<'tree> Iterator for Items<'tree> {
                 };
                 Some(NodeOrProperty::Property(prop))
             }
-            Token::EndNode => self.next(),
+            Token::EndNode if self.props_only == 1 => {
+                self.props_only = 2;
+                None
+            }
+            Token::EndNode => {
+                self.level -= 1;
+                self.next()
+            }
+        }
+    }
+}
+
+/// Iterator over all properties of a single node.
+#[derive(Clone)]
+pub struct Properties<'tree> {
+    iter: Items<'tree>,
+}
+
+impl<'tree> Iterator for Properties<'tree> {
+    type Item = Property<'tree>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let next = self.iter.next()?;
+        match next {
+            NodeOrProperty::Property(prop) => Some(prop),
+            NodeOrProperty::Node(_) => self.next(),
         }
     }
 }
 
 /// Either a node or a property.
-#[derive(Debug)]
 pub enum NodeOrProperty<'tree> {
     Node(Node<'tree>),
     Property(Property<'tree>),
 }
 
 /// A node that is inside a device tree.
-#[derive(Debug)]
 pub struct Node<'tree> {
     name: &'tree CStr,
+    props: Properties<'tree>,
+    /// The level of this node inside the tree.
+    ///
+    /// Root node is level `0`,
+    /// `/cpus` is level `1`,
+    /// and `/cpus/cpu0` is level `2`
+    pub level: u8,
+}
+
+impl<'tree> Node<'tree> {
+    /// Returns the name of this `Node`
+    pub fn name(&self) -> &'tree CStr {
+        self.name
+    }
+
+    /// Tries to convert the name of this `Node` into utf8 and
+    /// then returns the name if successful.
+    pub fn name_utf8(&self) -> Option<&'tree str> {
+        self.name.to_str().ok()
+    }
+
+    /// Tries to find a property inside this `Node` that has the given name.
+    pub fn prop(&self, query: &str) -> Option<Property<'tree>> {
+        self.props()
+            .filter(|prop| prop.name.to_str().map_or(false, |name| query == name))
+            .next()
+    }
+
+    /// Return an iterator that iterates over the properties
+    /// of this node.
+    pub fn props(&self) -> Properties<'tree> {
+        self.props.clone()
+    }
 }
 
 /// A property of a [`Node`].
-#[derive(Debug)]
 pub struct Property<'tree> {
     name: &'tree CStr,
     data: &'tree [u8],
@@ -154,55 +313,35 @@ impl<'tree> Property<'tree> {
         self.name
     }
 
-    /// Returns the data of this property.
-    ///
-    /// The returned struct is a wrapper around the raw
-    /// bytes and can be used to interpret the data
-    /// as different types, that are specified by the spec.
-    pub fn data(&self) -> PropertyData<'tree> {
-        PropertyData { raw: self.data }
-    }
-}
-
-/// Represents the raw data of a property.
-///
-/// This struct can be used to interpret the raw data
-/// using the different types specified by the DeviceTree spec.
-#[derive(Debug)]
-pub struct PropertyData<'tree> {
-    raw: &'tree [u8],
-}
-
-impl<'tree> PropertyData<'tree> {
     /// Returns the raw bytes of this property data.
     pub fn as_bytes(&self) -> &'tree [u8] {
-        self.raw
+        self.data
     }
 
-    /// Try to interpret this data as a big endian `u32`.
+    /// Try to interpret the data of this property as a big endian `u32`.
     pub fn as_u32(&self) -> Option<u32> {
         // try to read the big endian `u32` from the data
-        Some(u32::from_be_bytes(self.raw.try_into().ok()?))
+        Some(u32::from_be_bytes(self.data.try_into().ok()?))
     }
 
-    /// Try to interpret this data as a big endian `u64`.
+    /// Try to interpret the data of this property as a big endian `u64`.
     pub fn as_u64(&self) -> Option<u64> {
         // try to read the big endian `u64` from the data
-        Some(u64::from_be_bytes(self.raw.try_into().ok()?))
+        Some(u64::from_be_bytes(self.data.try_into().ok()?))
     }
 
-    /// Try to interpret this data as a nul-terminated string.
+    /// Try to interpret the data of this property as a nul-terminated string.
     pub fn as_str(&self) -> Option<&'tree CStr> {
-        crate::next_cstr_from_bytes(self.raw)
+        crate::next_cstr_from_bytes(self.data)
     }
 
-    /// Returns an iterator that will try to interpret this data
+    /// Returns an iterator that will try to interpret the data of this property
     /// as a list of strings.
     pub fn as_strings(&self) -> Strings<'tree> {
-        Strings { table: self.raw }
+        Strings { table: self.data }
     }
 
-    /// Try to interpret this data as a `PHandle` value string.
+    /// Try to interpret the data of this property as a `PHandle`.
     pub fn as_phandle(&self) -> Option<PHandle> {
         self.as_u32().map(Into::into)
     }

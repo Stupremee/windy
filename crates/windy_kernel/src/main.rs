@@ -27,8 +27,8 @@ unsafe extern "C" fn kinit(_hart_id: usize, fdt: *const u8) -> ! {
     let mut uart = Uart::new();
     let tree = DeviceTree::from_ptr(fdt).unwrap();
 
-    for item in tree.items().unwrap() {
-        write!(uart, "{:?}\n", item).unwrap();
+    for node in tree.nodes_at_level(2).unwrap() {
+        write!(uart, "{:?} => {}\n", node.name(), node.level).unwrap();
     }
 
     arch::exit(0)

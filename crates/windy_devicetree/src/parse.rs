@@ -46,10 +46,11 @@ pub struct BeginNodeToken<'tree> {
 
 /// Iterator over the raw tokens parsed from a structure
 /// block inside a device tree.
+#[derive(Clone)]
 pub struct TokenIter<'tree> {
-    buf: &'tree [u8],
+    pub(crate) buf: &'tree [u8],
     /// The current offset where this iterator is.
-    offset: usize,
+    pub(crate) offset: usize,
 }
 
 impl<'tree> TokenIter<'tree> {
