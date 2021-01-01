@@ -17,6 +17,7 @@ const FDT_END: u32 = 0x00000009;
 /// Raw token returned by the `TokenIter`.
 ///
 /// `FDT_NOP` tokens are automatically skipped.
+#[derive(Debug)]
 pub enum Token<'tree> {
     /// This token marks the beginning of a new node inside the tree.
     BeginNode(BeginNodeToken<'tree>),
@@ -27,6 +28,7 @@ pub enum Token<'tree> {
 }
 
 /// The data that follows a `FDT_PROP` token.
+#[derive(Debug)]
 pub struct PropertyToken<'tree> {
     /// A reference to the raw data of this property.
     pub data: &'tree [u8],
@@ -36,6 +38,7 @@ pub struct PropertyToken<'tree> {
 }
 
 /// The data that follows a `FDT_BEGIN_NODE` token.
+#[derive(Debug)]
 pub struct BeginNodeToken<'tree> {
     /// The name of this begin node token.
     pub name: &'tree CStr,
@@ -58,6 +61,7 @@ impl<'tree> TokenIter<'tree> {
 
     fn next_u32(&mut self) -> Option<u32> {
         let bytes = self.buf.get(self.offset..self.offset + 4)?;
+        self.offset += 4;
         Some(u32::from_be_bytes(bytes.try_into().ok()?))
     }
 }
@@ -69,9 +73,6 @@ impl<'tree> Iterator for TokenIter<'tree> {
         // get the next token
         let token = self.next_u32()?;
 
-        // increment `offset` so we point to the next `u32`
-        self.offset += 4;
-
         match token {
             // beginning of a new node is followed by it's name
             // and optional padding for aliging to 4 bytes
@@ -81,14 +82,10 @@ impl<'tree> Iterator for TokenIter<'tree> {
 
                 // get the raw bytes and find the position of the nul terminator
                 let str_bytes = self.buf.get(self.offset..)?;
-                let nul_pos = memchr::memchr(0, str_bytes)?;
-                let str_bytes = str_bytes.get(..=nul_pos)?;
+                let name = crate::next_cstr_from_bytes(str_bytes)?;
 
-                // SAFETY
-                // we manually check if the bytes are nul-terminated
-                let name = unsafe { CStr::from_bytes_with_nul_unchecked(str_bytes) };
-
-                // skip all bytes we have just read as the `name`
+                // skip all bytes we have just read as the `name`, the `+ 1` is
+                // required because `to_bytes` will not include the nul-terminator.
                 self.offset += name.to_bytes().len() + 1;
 
                 // there may be padding after the string to align to 4 bytes
@@ -108,6 +105,9 @@ impl<'tree> Iterator for TokenIter<'tree> {
 
                 // get a slice to the data of this property
                 let data = self.buf.get(self.offset..self.offset + len as usize)?;
+
+                // skip the read data
+                self.offset += data.len();
 
                 // there may be padding after the data to align to 4 bytes
                 while self.offset % 4 != 0 {
