@@ -332,6 +332,12 @@ impl<'tree> Node<'tree> {
         self.name
     }
 
+    /// Try to find and parse a unit address of this node.
+    pub fn unit_addr(&self) -> Option<usize> {
+        let addr = self.name.to_str().ok()?.split('@').nth(1)?;
+        addr.parse().ok()
+    }
+
     /// Returns the level of this `Node` inside the tree
     ///
     /// `/` is level `0`,
