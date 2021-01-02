@@ -28,13 +28,10 @@ unsafe extern "C" fn kinit(_hart_id: usize, fdt: *const u8) -> ! {
     uart.init();
     let tree = DeviceTree::from_ptr(fdt).unwrap();
 
-    //for node in tree.nodes_at_level(1) {
-    //write!(uart, "{:?} => {}\n", node.name(), node.level()).unwrap();
-    //}
-
-    let cpus = tree.node("/").unwrap();
+    let cpus = tree.find_node("/uart").unwrap();
+    write!(uart, "n: {:?}\n", cpus.name()).unwrap();
     for node in cpus.props() {
-        write!(uart, "n: {:?}\n", node.name()).unwrap();
+        write!(uart, "p: {:?}\n", node.name()).unwrap();
     }
 
     arch::exit(0)

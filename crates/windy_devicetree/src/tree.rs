@@ -50,13 +50,23 @@ impl<'tree> DeviceTree<'tree> {
         })
     }
 
+    /// Returns the root node of this device tree
+    pub fn root(&'tree self) -> Option<Node<'tree>> {
+        self.nodes().next()
+    }
+
     /// Return an iterator over all nodes that are at the given `level`
     /// inside the tree structure.
     pub fn nodes_at_level(&'tree self, level: u8) -> impl Iterator<Item = Node<'tree>> {
         self.nodes().filter(move |node| node.level == level)
     }
 
-    /// Tries to find a node with the given path inside this device tree.
+    /// Returns the first node that matches the given path
+    pub fn find_node<'query>(&'tree self, path: &'query str) -> Option<Node<'tree>> {
+        self.find_nodes(path).next()
+    }
+
+    /// Returns an iterator over all nodes that match the given path.
     ///
     /// The path is a `/` separated list of node names, and must start with `/`
     /// to indicate the root node.
@@ -65,40 +75,8 @@ impl<'tree> DeviceTree<'tree> {
     /// - `/` => Root Node
     /// - `/cpus` => CPUs Node
     /// - `/cpus/cpu0` => Node of the 0th CPU
-    pub fn node(&'tree self, path: &str) -> Option<Node<'tree>> {
-        // path didn't start with root node
-        if !path.starts_with('/') {
-            return None;
-        }
-
-        // get every single part of the path.
-        let mut parts = path.split_terminator('/');
-
-        let mut current_part = parts.next()?;
-        let mut current_level = 0;
-
-        for node in self.nodes() {
-            // check if the node is at the current level,
-            // and if the name of the node matches the current part
-            // of the full path
-            if node.level == current_level
-                && node
-                    .name()
-                    .to_str()
-                    .map_or(false, |name| name == current_part)
-            {
-                current_part = match parts.next() {
-                    Some(part) => part,
-                    // there are no parts left in the path,
-                    // so we found our node
-                    None => return Some(node),
-                };
-                current_level += 1;
-            }
-        }
-
-        // no node found
-        None
+    pub fn find_nodes<'query>(&'tree self, path: &'query str) -> FindNodes<'tree, 'query> {
+        FindNodes::new(self, path)
     }
 
     /// Returns an iterator over all the nodes of this tree.
@@ -160,6 +138,122 @@ impl<'tree> DeviceTree<'tree> {
     }
 }
 
+/// Iterator over all nodes that were found by a search path
+pub struct FindNodes<'tree, 'query> {
+    last_part: &'query str,
+    /// If `nodes` and `single_node` are `None`, this iterator
+    /// must always reuturn `None`.
+    nodes: Option<Children<'tree>>,
+    single_node: Option<Node<'tree>>,
+}
+
+impl<'tree, 'query> FindNodes<'tree, 'query> {
+    fn new(tree: &'tree DeviceTree<'tree>, path: &'query str) -> FindNodes<'tree, 'query> {
+        match Self::new_inner(tree, path) {
+            Some(iter) => iter,
+            None => Self {
+                last_part: path,
+                nodes: None,
+                single_node: None,
+            },
+        }
+    }
+
+    fn new_inner(
+        tree: &'tree DeviceTree<'tree>,
+        path: &'query str,
+    ) -> Option<FindNodes<'tree, 'query>> {
+        // root node has to be handled speciallly
+        if path == "/" {
+            return Some(Self {
+                last_part: path,
+                single_node: tree.nodes_at_level(0).next(),
+                nodes: None,
+            });
+        }
+
+        // get the parts of the search query
+        let mut parts = path.split_terminator('/').peekable();
+        // skip the first one because it represents the root node
+        parts.next()?;
+
+        // now get the root node and use the children of the root node as the starting point
+        let root = tree.nodes_at_level(0).next()?;
+        let mut children = root.children();
+
+        // get the next part
+        let mut next_part = parts.next();
+
+        // loop until we have no parts left from the query and search the
+        // node with the part inside the current `children`.
+        while let Some(part) = next_part {
+            // if `part` is the last part of the query,
+            // we will not continue searching and instead delegete the search process
+            // to the iterator implementation
+            if parts.peek().is_none() {
+                break;
+            }
+
+            // find the node which matches the query
+            let node = children.find(|node| Self::names_equal(node.name(), part))?;
+            // get the next level of children
+            children = node.children();
+
+            // get next query part
+            next_part = parts.next();
+        }
+
+        Some(Self {
+            nodes: Some(children),
+            last_part: next_part?,
+            single_node: None,
+        })
+    }
+
+    fn names_equal(a: &CStr, b: &str) -> bool {
+        fn inner(a: &CStr, b: &str) -> Option<bool> {
+            let (a_name, a_unit) = {
+                let mut parts = a.to_str().ok()?.split('@');
+                (parts.next()?, parts.next())
+            };
+            let (b_name, b_unit) = {
+                let mut parts = b.split('@');
+                (parts.next()?, parts.next())
+            };
+
+            let is_name_same = a_name == b_name;
+            let is_unit_same = match (a_unit, b_unit) {
+                (Some(a), Some(b)) => a == b,
+                (Some(_), None) => true,
+                (None, Some(_)) => true,
+                (None, None) => true,
+            };
+
+            Some(is_name_same && is_unit_same)
+        }
+
+        inner(a, b).unwrap_or(false)
+    }
+}
+
+impl<'tree> Iterator for FindNodes<'tree, '_> {
+    type Item = Node<'tree>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let name = self.last_part;
+
+        if let Some(ref node) = self.single_node {
+            Some(node.clone())
+        } else if let Some(ref mut nodes) = self.nodes {
+            nodes
+                .filter(|node| Self::names_equal(node.name(), name))
+                .next()
+        } else {
+            None
+        }
+    }
+}
+
 /// Iterator over all nodes and properties of this device tree.
 #[derive(Clone)]
 pub struct Items<'tree> {
@@ -218,6 +312,7 @@ pub enum NodeOrProperty<'tree> {
 }
 
 /// A node that is inside a device tree.
+#[derive(Clone)]
 pub struct Node<'tree> {
     tree: &'tree DeviceTree<'tree>,
     data: &'tree [u8],
