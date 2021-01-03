@@ -74,18 +74,13 @@ impl<'tree> Iterator for TokenIter<'tree> {
 
         match token {
             FDT_BEGIN_NODE => {
-                // after a node begin token the name of the node follows as a
-                // nul-terminated string
-                let nul_pos = memchr::memchr(0x00, self.buf)?;
-                let str_bytes = &self.buf[..nul_pos];
-
                 // SAFETY
-                // Inside a valid device tree, the name must always be UTF-8 encoded.
-                let name = unsafe { core::str::from_utf8_unchecked(str_bytes) };
+                // After a begin node token must be an UTF8 encoded name.
+                let name = unsafe { crate::next_str(self.buf) }?;
 
                 // the nul-terminated string may be followed by padding to align
                 // to a 4 byte boundary
-                let len = crate::align_up(str_bytes.len() + 1, 4);
+                let len = crate::align_up(name.len() + 1, 4);
                 self.buf = &self.buf[len..];
 
                 Some(Token::BeginNode(BeginNodeToken { name }))

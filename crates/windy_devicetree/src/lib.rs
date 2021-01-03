@@ -1,5 +1,5 @@
 #![deny(rust_2018_idioms, broken_intra_doc_links)]
-// #![no_std]
+#![no_std]
 
 pub mod node;
 pub mod parse;
@@ -13,17 +13,19 @@ use core::{cell::Cell, convert::TryInto, marker::PhantomData};
 /// The magic number, which is the first 4 bytes in every device tree.
 const MAGIC: u32 = 0xD00DFEED;
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn test_data() {
-        let data = std::fs::read("./test_data").unwrap();
+///  A phandle is a way to reference another node in the devicetree.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct PHandle(u32);
 
-        let tree = unsafe { super::DeviceTree::from_ptr(data.as_ptr()) }.unwrap();
-        let node = tree.find_node("/").unwrap();
-        for n in node.children() {
-            println!("{}", n.name());
-        }
+impl From<u32> for PHandle {
+    fn from(x: u32) -> Self {
+        Self(x)
+    }
+}
+
+impl Into<u32> for PHandle {
+    fn into(self) -> u32 {
+        self.0
     }
 }
 
@@ -79,6 +81,7 @@ impl<'tree> DeviceTree<'tree> {
         TokenIter::new(buf)
     }
 
+    /// Try to find a node at the given path
     pub fn find_node(&'tree self, path: &str) -> Option<Node<'tree>> {
         let mut path = path.split_terminator('/').peekable();
         // nesting_level is the level of the current node
@@ -114,6 +117,7 @@ impl<'tree> DeviceTree<'tree> {
                     path.next();
                     if path.peek().is_none() {
                         return Some(Node {
+                            tree: self,
                             name: node.name,
                             level,
                             children: iter.clone(),
@@ -138,6 +142,18 @@ impl<'tree> DeviceTree<'tree> {
         }
 
         None
+    }
+
+    /// Returns the string at the given offset
+    ///
+    /// # Safety
+    ///
+    /// The given offset must be a valid offset and point
+    /// to a valid string.
+    pub unsafe fn string_at(&'tree self, offset: usize) -> Option<&'tree str> {
+        let start = self.strings_offset() as usize;
+        let buf = self.buf.get(start + offset..)?;
+        next_str(buf)
     }
 
     /// Returns the total size of this device tree structure,
@@ -201,4 +217,18 @@ impl<'tree> DeviceTree<'tree> {
 pub(crate) fn align_up(val: usize, alignment: usize) -> usize {
     let up = val + (alignment - 1);
     up & !(alignment - 1)
+}
+
+pub(crate) unsafe fn next_str(bytes: &[u8]) -> Option<&str> {
+    let nul_pos = memchr::memchr(0x00, bytes)?;
+    let str_bytes = &bytes[..nul_pos];
+
+    Some(core::str::from_utf8_unchecked(str_bytes))
+}
+
+pub(crate) fn next_str_checked(bytes: &[u8]) -> Option<&str> {
+    let nul_pos = memchr::memchr(0x00, bytes)?;
+    let str_bytes = &bytes[..nul_pos];
+
+    core::str::from_utf8(str_bytes).ok()
 }
