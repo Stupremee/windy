@@ -6,4 +6,4 @@ runner = "run-qemu"
 rustflags = ["-Clink-arg=-Tcrates/windy_kernel/lds/qemu.lds"]
 
 [unstable]
-#build-std = ["core"]
+build-std = ["core"]
