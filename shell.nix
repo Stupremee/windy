@@ -23,7 +23,7 @@ let
         -nographic \
         -serial mon:stdio \
         -d guest_errors,trace:riscv_trap,trace:sifive_gpio_write,trace:pmpcfg_csr_write,trace:pmpaddr_csr_write,int,trace:exynos_uart_read \
-        -bios ${opensbi}/platform/fw_jump.elf \
+        -bios ${opensbi}/platform/fw_dynamic.elf \
         -gdb tcp::1234 \
         -kernel "$@"
   '';

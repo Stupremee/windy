@@ -11,13 +11,26 @@ compile_error!("Windy can only run on systems that have atomic support");
 
 pub mod arch;
 pub mod drivers;
+pub mod mem;
 
 mod boot;
 mod panic;
 #[macro_use]
 mod macros;
 
+use core::fmt::Write;
+use drivers::ns16550::Uart;
+use windy_devicetree::DeviceTree;
+
 #[no_mangle]
-unsafe extern "C" fn kinit(_hart_id: usize, _fdt: *const u8) -> ! {
+unsafe extern "C" fn kinit(_hart_id: usize, fdt: *const u8) -> ! {
+    let mut uart = Uart::new(0x1000_0000 as *mut _);
+    let tree = DeviceTree::from_ptr(fdt).unwrap();
+
+    let node = tree.find_node("/soc").unwrap();
+    for n in node.children() {
+        write!(uart, "n: {}\n", n.name());
+    }
+
     arch::exit(0)
 }

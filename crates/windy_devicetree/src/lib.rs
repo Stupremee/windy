@@ -72,6 +72,15 @@ impl<'tree> DeviceTree<'tree> {
         })
     }
 
+    /// Return an iterator over all nodes of this tree.
+    pub fn nodes(&'tree self) -> Nodes<'tree> {
+        Nodes {
+            tree: self,
+            iter: self.tokens(),
+            level: 0,
+        }
+    }
+
     /// Returns an iterator over the raw tokens of the structure block.
     pub fn tokens(&'tree self) -> TokenIter<'tree> {
         let start = self.struct_offset() as usize;
@@ -210,6 +219,40 @@ impl<'tree> DeviceTree<'tree> {
         let real_idx = idx * 4;
         let bytes = &self.buf[real_idx..real_idx + 4];
         u32::from_be_bytes(bytes.try_into().unwrap())
+    }
+}
+
+pub struct Nodes<'tree> {
+    tree: &'tree DeviceTree<'tree>,
+    iter: TokenIter<'tree>,
+    level: u8,
+}
+
+impl<'tree> Iterator for Nodes<'tree> {
+    type Item = Node<'tree>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let token = self.iter.next()?;
+
+        match token {
+            Token::BeginNode(node) => {
+                let level = self.level;
+                self.level += 1;
+
+                Some(Node {
+                    tree: self.tree,
+                    name: node.name,
+                    level,
+                    children: self.iter.clone(),
+                })
+            }
+            Token::EndNode => {
+                self.level -= 1;
+                self.next()
+            }
+            // we don't care about properties here
+            Token::Property(_) => self.next(),
+        }
     }
 }
 
