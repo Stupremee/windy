@@ -1,0 +1,6 @@
+# vim:ft=toml
+
+[toolchain]
+channel = "nightly-2021-01-06"
+components = ["rustfmt", "rust-src"]
+targets = ["riscv64gc-unknown-none-elf"]

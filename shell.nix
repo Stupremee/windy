@@ -1,14 +1,6 @@
 { pkgs ? import <nixpkgs> { } }:
 let
-  rustChannel = pkgs.rustChannelOf {
-    channel = "nightly";
-    date = "2020-12-22";
-  };
-
-  rust = rustChannel.rust.override {
-    extensions = [ "rust-src" ];
-    targets = [ "riscv64gc-unknown-none-elf" ];
-  };
+  rust = pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain;
 
   pkgsRiscv =
     import <nixpkgs> { crossSystem = { config = "riscv64-none-elf"; }; };
