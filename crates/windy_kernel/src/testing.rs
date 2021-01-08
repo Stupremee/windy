@@ -10,7 +10,7 @@ pub(super) fn test_runner(tests: &[&dyn Fn()]) {
     // FIXME: Replace with global `print` macro
     let mut uart = Uart::new(0x1000_0000 as *mut _);
 
-    write!(uart, "Running {} tests\n", tests.len());
+    write!(uart, "Running {} tests\n", tests.len()).unwrap();
     for test in tests {
         test();
     }

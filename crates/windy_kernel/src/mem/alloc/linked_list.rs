@@ -84,6 +84,11 @@ impl ListNode<'_> {
 
         self.head
     }
+
+    /// Returns the pointer to the address of the next node.
+    pub fn as_ptr(&self) -> *mut usize {
+        self.head
+    }
 }
 
 /// Iterator over all [`ListNode`]s of a single [`LinkedList`].

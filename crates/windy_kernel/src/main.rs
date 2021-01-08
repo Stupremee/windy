@@ -6,7 +6,8 @@
     cfg_target_has_atomic,
     naked_functions,
     custom_test_frameworks,
-    exclusive_range_pattern
+    exclusive_range_pattern,
+    const_in_array_repeat_expressions
 )]
 #![reexport_test_harness_main = "test_main"]
 #![test_runner(crate::testing::test_runner)]
