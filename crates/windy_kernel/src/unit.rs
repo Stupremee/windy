@@ -23,9 +23,9 @@ impl fmt::Display for ByteUnit {
 
         match self.0 {
             0..KIB => write!(f, "{} B", self.0)?,
-            0..MIB => write!(f, "{:.2} KiB", count / KIB as f32)?,
-            0..GIB => write!(f, "{:.2} MiB", count / MIB as f32)?,
-            0..TIB => write!(f, "{:.2} GiB", count / GIB as f32)?,
+            KIB..MIB => write!(f, "{:.2} KiB", count / KIB as f32)?,
+            MIB..GIB => write!(f, "{:.2} MiB", count / MIB as f32)?,
+            GIB..TIB => write!(f, "{:.2} GiB", count / GIB as f32)?,
             _ => write!(f, "{:.2} TiB", count / TIB as f32)?,
         };
 

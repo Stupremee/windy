@@ -39,6 +39,7 @@ impl fmt::Display for Error {
 }
 
 /// Statistics for a memory allocator.
+#[derive(Debug, Clone)]
 pub struct AllocStats {
     /// The name of the allocator that collected these stat.s
     pub name: &'static str,

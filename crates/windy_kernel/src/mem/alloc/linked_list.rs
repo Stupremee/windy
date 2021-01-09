@@ -86,7 +86,7 @@ impl ListNode<'_> {
     }
 
     /// Returns the pointer to the address of the next node.
-    pub fn as_ptr(&self) -> *mut usize {
+    pub fn as_ptr(&self) -> Option<NonNull<usize>> {
         self.head
     }
 }

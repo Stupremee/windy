@@ -30,8 +30,19 @@ mod macros;
 #[cfg(test)]
 mod testing;
 
+use core::fmt::Write;
+use windy_devicetree::DeviceTree;
+
 #[no_mangle]
 unsafe extern "C" fn kinit(_hart_id: usize, fdt: *const u8) -> ! {
+    let mut uart = drivers::ns16550::Uart::new(0x1000_0000 as *mut _);
+
+    let tree = DeviceTree::from_ptr(fdt).unwrap();
+    let root = tree.find_node("/memory").unwrap();
+    for c in root.props() {
+        write!(uart, "c: {}\n", c.name()).unwrap();
+    }
+
     #[cfg(test)]
     crate::test_main();
 
