@@ -38,9 +38,9 @@ unsafe extern "C" fn kinit(_hart_id: usize, fdt: *const u8) -> ! {
     let mut uart = drivers::ns16550::Uart::new(0x1000_0000 as *mut _);
 
     let tree = DeviceTree::from_ptr(fdt).unwrap();
-    let root = tree.find_node("/memory").unwrap();
-    for c in root.props() {
-        write!(uart, "c: {}\n", c.name()).unwrap();
+    let root = tree.memory();
+    for c in root.regions() {
+        write!(uart, "{:x?}\n", c).unwrap();
     }
 
     #[cfg(test)]

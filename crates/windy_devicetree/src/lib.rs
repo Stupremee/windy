@@ -5,7 +5,7 @@ pub mod node;
 pub mod parse;
 
 use self::{
-    node::Node,
+    node::{MemoryNode, Node},
     parse::{Token, TokenIter},
 };
 use core::{cell::Cell, convert::TryInto, marker::PhantomData};
@@ -70,6 +70,22 @@ impl<'tree> DeviceTree<'tree> {
             buf,
             _send_sync: PhantomData,
         })
+    }
+
+    /// Returns the root node of this tree.
+    pub fn root(&'tree self) -> Node<'tree> {
+        self.find_node("/").expect("there must be a root node")
+    }
+
+    /// Returns the memory node of this device tree which
+    /// can be used to get all memory regions.
+    pub fn memory(&'tree self) -> MemoryNode<'tree> {
+        MemoryNode {
+            tree: self,
+            node: self
+                .find_node("/memory")
+                .expect("there must be a `/memory` node"),
+        }
     }
 
     /// Return an iterator over all nodes of this tree.

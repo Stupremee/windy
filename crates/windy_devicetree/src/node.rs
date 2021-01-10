@@ -2,7 +2,7 @@ use crate::{
     parse::{Token, TokenIter},
     DeviceTree,
 };
-use core::{convert::TryInto, iter::Fuse};
+use core::{convert::TryInto, iter::Fuse, num::NonZeroU32, slice};
 
 /// A node inside a device tree.
 #[derive(Clone)]
@@ -198,5 +198,94 @@ impl<'tree> Iterator for Strings<'tree> {
 
         // return the string
         Some(string)
+    }
+}
+
+/// The `/memory` node inside a device tree
+#[derive(Clone)]
+pub struct MemoryNode<'tree> {
+    pub(super) tree: &'tree DeviceTree<'tree>,
+    pub(super) node: Node<'tree>,
+}
+
+impl<'tree> MemoryNode<'tree> {
+    /// A copy of the underyling [`Node`] of this memory node.
+    pub fn node(&self) -> Node<'tree> {
+        self.node.clone()
+    }
+
+    /// Returns an iterator over all memory regions that are specified
+    /// in this memory node.
+    pub fn regions(&self) -> MemoryRegions<'tree> {
+        let address_cells = self.tree.root().prop("#address-cells");
+        let size_cells = self.tree.root().prop("#size-cells");
+        let data = self
+            .node
+            .prop("reg")
+            .map(|prop| prop.as_bytes())
+            .unwrap_or_default();
+
+        MemoryRegions {
+            address_cells: address_cells.and_then(|prop| NonZeroU32::new(prop.as_u32()?)),
+            size_cells: size_cells.and_then(|prop| NonZeroU32::new(prop.as_u32()?)),
+            data,
+        }
+    }
+}
+
+/// Iterator over all regions of a [`MemoryNode`].
+pub struct MemoryRegions<'tree> {
+    address_cells: Option<NonZeroU32>,
+    size_cells: Option<NonZeroU32>,
+    data: &'tree [u8],
+}
+
+impl<'tree> MemoryRegions<'tree> {
+    fn read<const N: usize>(&mut self) -> Option<[u8; N]> {
+        let bytes = self.data.get(..N)?;
+        self.data = &self.data[N..];
+        Some(bytes.try_into().ok()?)
+    }
+
+    fn read_num(&mut self, count: NonZeroU32) -> Option<usize> {
+        match count.get() {
+            1 => Some(u32::from_be_bytes(self.read()?) as usize),
+            2 => Some(u64::from_be_bytes(self.read()?) as usize),
+            _ => panic!("the address cells or size cells field must be `2` or `4`"),
+        }
+    }
+}
+
+/// A single region of memory.
+#[derive(Clone, Debug)]
+pub struct MemoryRegion {
+    start: usize,
+    size: usize,
+}
+
+impl MemoryRegion {
+    /// Return the start address of this memory region.
+    pub fn start(&self) -> usize {
+        self.start
+    }
+
+    /// Return the end address of this memory region.
+    pub fn end(&self) -> usize {
+        self.start() + self.size()
+    }
+
+    /// Return the size of this memory region.
+    pub fn size(&self) -> usize {
+        self.size
+    }
+}
+
+impl Iterator for MemoryRegions<'_> {
+    type Item = MemoryRegion;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let start = self.read_num(self.address_cells?)?;
+        let size = self.read_num(self.size_cells?)?;
+        Some(MemoryRegion { start, size })
     }
 }
