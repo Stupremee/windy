@@ -38,9 +38,11 @@ impl Slab {
 
         while (ptr.add(self.block_size)) <= end.as_ptr() {
             let block = NonNull::new_unchecked(ptr as *mut _);
+
             self.free_list.push(block);
-            ptr = ptr.add(self.block_size);
             self.stats.total += self.block_size;
+
+            ptr = ptr.add(self.block_size);
         }
     }
 
@@ -58,7 +60,13 @@ impl Slab {
     ///
     /// The `block` has to be allocated by this slab.
     pub unsafe fn deallocate(&mut self, block: NonNull<u8>) {
-        self.free_list.push(block.cast().as_ptr());
+        self.free_list.push(block.cast());
+    }
+
+    /// Return the size of the blocks that this slab
+    /// is able to allocate.
+    pub fn block_size(&self) -> usize {
+        self.block_size
     }
 
     /// Returns a copy of the statistics for this allocator.

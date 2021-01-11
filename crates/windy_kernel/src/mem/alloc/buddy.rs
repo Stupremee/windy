@@ -18,6 +18,14 @@ pub fn size_for_order(order: usize) -> usize {
     (1 << order) * super::PAGE_SIZE
 }
 
+/// Calculates the first order where the given `size` would fit in.
+///
+/// This function may return an order that is larger than [`MAX_ORDER`].
+pub fn order_for_size(size: usize) -> usize {
+    let size = size.next_power_of_two() / super::PAGE_SIZE;
+    size.trailing_zeros() as usize
+}
+
 /// The central structure that is responsible for allocating
 /// memory using the buddy allocation algorithm.
 pub struct BuddyAllocator {
@@ -27,7 +35,7 @@ pub struct BuddyAllocator {
 
 impl BuddyAllocator {
     /// Create a empty and uninitialized buddy allocator.
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             orders: EMPTY_ORDERS,
             stats: AllocStats::with_name("Buddy Allocator"),
@@ -85,6 +93,7 @@ impl BuddyAllocator {
     ///
     /// Returns the order which was inserted into this allocator.
     unsafe fn add_single_region(&mut self, start: *mut u8, end: *mut u8) -> usize {
+        // TODO: Optimize so it doesn't need a loop
         let start_addr = start as usize;
 
         // loop until we reached the maximum order

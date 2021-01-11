@@ -7,7 +7,9 @@
     naked_functions,
     custom_test_frameworks,
     exclusive_range_pattern,
-    const_in_array_repeat_expressions
+    const_in_array_repeat_expressions,
+    maybe_uninit_uninit_array,
+    const_fn_transmute
 )]
 #![reexport_test_harness_main = "test_main"]
 #![test_runner(crate::testing::test_runner)]
