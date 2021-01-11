@@ -1,6 +1,7 @@
 //! Memory Allocation APIs.
 
 pub mod buddy;
+pub mod slab;
 
 mod linked_list;
 pub use linked_list::LinkedList;
@@ -53,7 +54,7 @@ pub struct AllocStats {
 
 impl AllocStats {
     /// Create a new [`AllocStats`] instance for the given allocator name.
-    pub fn with_name(name: &'static str) -> Self {
+    pub const fn with_name(name: &'static str) -> Self {
         Self {
             name,
             requested: 0,
@@ -74,4 +75,12 @@ impl fmt::Display for AllocStats {
         writeln!(f)?;
         Ok(())
     }
+}
+
+/// Aligns the given `addr` upwards to `align`.
+///
+/// # Safety
+/// Requires `align` to be a power of two.
+pub unsafe fn align_up(addr: usize, align: usize) -> usize {
+    (addr + align - 1) & !(align - 1)
 }

@@ -2,10 +2,8 @@
 //! the physical memory that will then be used by either the slab allocator
 //! to allocate objects, or directly by the kernel.
 
-use super::{AllocStats, Error, LinkedList, Result};
+use super::{align_up, AllocStats, Error, LinkedList, Result};
 use core::{cmp, mem, ptr, ptr::NonNull};
-
-// FIXME: We totally ignore the alignment currently.
 
 /// The maximum order for the buddy allocator (inclusive).
 pub const MAX_ORDER: usize = 14;
@@ -54,7 +52,7 @@ impl BuddyAllocator {
     pub unsafe fn add_region(&mut self, start: NonNull<u8>, end: NonNull<u8>) -> Result<usize> {
         // align the pointer
         let start = start.as_ptr();
-        let mut start = start.wrapping_add(start.align_offset(mem::align_of::<usize>()));
+        let mut start = align_up(start as _, mem::align_of::<usize>()) as *mut u8;
         let end = end.as_ptr();
 
         // check if there's enough memory for at least

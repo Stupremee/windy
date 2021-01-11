@@ -2,7 +2,7 @@ use crate::{
     parse::{Token, TokenIter},
     DeviceTree,
 };
-use core::{convert::TryInto, iter::Fuse, num::NonZeroU32, slice};
+use core::{convert::TryInto, iter::Fuse, num::NonZeroU32};
 
 /// A node inside a device tree.
 #[derive(Clone)]
