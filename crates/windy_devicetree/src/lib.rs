@@ -72,6 +72,18 @@ impl<'tree> DeviceTree<'tree> {
         })
     }
 
+    /// Return an iterator over all elemens inside the memory reservations block
+    /// of this device tree.
+    ///
+    /// Memory reservation regions should never be used as normal memory by the
+    /// kernel.
+    pub fn memory_reservations(&'tree self) -> MemoryReservations<'tree> {
+        let start = self.mem_rsv_offset() as usize;
+        let data = &self.buf[start..];
+
+        MemoryReservations { data }
+    }
+
     /// Returns the root node of this tree.
     pub fn root(&'tree self) -> Node<'tree> {
         self.find_node("/").expect("there must be a root node")
@@ -269,6 +281,59 @@ impl<'tree> Iterator for Nodes<'tree> {
             // we don't care about properties here
             Token::Property(_) => self.next(),
         }
+    }
+}
+
+/// Iterator over all elements inside the memory reservations block.
+pub struct MemoryReservations<'tree> {
+    data: &'tree [u8],
+}
+
+impl Iterator for MemoryReservations<'_> {
+    type Item = MemoryReservation;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let start = self.data.get(..8)?;
+        self.data = &self.data[8..];
+
+        let size = self.data.get(..8)?;
+        self.data = &self.data[8..];
+
+        let start = u64::from_be_bytes(start.try_into().ok()?) as usize;
+        let size = u64::from_be_bytes(size.try_into().ok()?) as usize;
+
+        // the memory reservations block is terminated by a memory reservation
+        // where both fields are 0
+        if start == 0 && size == 0 {
+            self.data = &[];
+            return None;
+        }
+
+        Some(MemoryReservation { start, size })
+    }
+}
+
+/// A region of memory that should not be overwritten because
+/// it may contain important data.
+pub struct MemoryReservation {
+    start: usize,
+    size: usize,
+}
+
+impl MemoryReservation {
+    /// Return the start address of this memory reservation.
+    pub fn start(&self) -> usize {
+        self.start
+    }
+
+    /// Return the end address of this memory reservation.
+    pub fn end(&self) -> usize {
+        self.start() + self.size()
+    }
+
+    /// Return the size of this memory reservation block.
+    pub fn size(&self) -> usize {
+        self.size
     }
 }
 

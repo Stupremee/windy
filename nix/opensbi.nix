@@ -6,7 +6,8 @@
 { platform ? "generic", pkgs }:
 let
   inherit (pkgs) stdenv fetchFromGitHub;
-  version = "0.8";
+
+  version = "0d49c3b";
 in stdenv.mkDerivation rec {
   name = "opensbi";
   inherit version;
@@ -14,13 +15,13 @@ in stdenv.mkDerivation rec {
   src = fetchFromGitHub {
     owner = "riscv";
     repo = name;
-    rev = "v${version}";
-    sha256 = "sha256-C6V62FOZ6Gm1Ci6pcGrzqBomG6GVh+FfPfxyg80CP/k=";
+    rev = "${version}";
+    sha256 = "sha256-uqljriqyM2ydl6RCJvies+QphLmK7ytF1JJz4U8FGBQ=";
   };
 
   PLATFORM = platform;
   installPhase = ''
     mkdir -p $out/platform/
-    mv ./build/platform/${platform}/firmware/*.elf $out/platform
+    mv ./build/platform/${platform}/firmware/{*.elf,*.bin} $out/platform
   '';
 }

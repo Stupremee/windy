@@ -3,6 +3,7 @@
 //! Contains stuff like `print` and `dbg`.
 
 // FIXME: REPLACE WITH ACTUAL `dbg` MACRO
+#[macro_export]
 macro_rules! dbg {
     ($c:expr) => {{
         #[allow(unused_unsafe)]

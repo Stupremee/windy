@@ -111,11 +111,11 @@ impl GlobalAllocator {
     pub unsafe fn init(&mut self, start: NonNull<u8>, end: NonNull<u8>) -> Result<()> {
         self.stats.total += self.fallback.add_region(start, end)?;
 
-        for slab in self.slabs.iter_mut() {
-            let mut region = self.fallback.allocate(ORDER_PER_SLAB)?;
-            let Range { start, end } = region.as_mut().as_mut_ptr_range();
-            slab.add_region(NonNull::new_unchecked(start), NonNull::new_unchecked(end));
-        }
+        //for slab in self.slabs.iter_mut() {
+        //let mut region = self.fallback.allocate(ORDER_PER_SLAB)?;
+        //let Range { start, end } = region.as_mut().as_mut_ptr_range();
+        //slab.add_region(NonNull::new_unchecked(start), NonNull::new_unchecked(end));
+        //}
 
         Ok(())
     }

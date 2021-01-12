@@ -65,7 +65,7 @@ impl BuddyAllocator {
 
         // check if there's enough memory for at least
         // one page
-        if (end as usize - start as usize) < super::PAGE_SIZE {
+        if (end as usize).saturating_sub(start as usize) < super::PAGE_SIZE {
             return Err(Error::RegionTooSmall);
         }
 
@@ -76,7 +76,7 @@ impl BuddyAllocator {
 
         // loop until there's not enough memory left to allocate a single page
         let mut total = 0;
-        while (end as usize - start as usize) >= super::PAGE_SIZE {
+        while (end as usize).saturating_sub(start as usize) >= super::PAGE_SIZE {
             let order = self.add_single_region(start, end);
             let size = size_for_order(order);
 
@@ -98,7 +98,7 @@ impl BuddyAllocator {
 
         // loop until we reached the maximum order
         let mut order = 0;
-        while order <= MAX_ORDER {
+        while order < MAX_ORDER {
             // calculate the size for the next order,
             // so we can break if another order doesn't fit.
             let size = size_for_order(order + 1);
