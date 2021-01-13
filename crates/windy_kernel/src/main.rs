@@ -46,13 +46,7 @@ unsafe extern "C" fn kinit(_hart_id: usize, fdt: *const u8) -> ! {
 
     let start = NonNull::new_unchecked(region.start() as *mut u8);
     let end = NonNull::new_unchecked(region.end() as *mut u8);
-    write!(
-        uart,
-        "{:x} .. {:x}\n+++++++++++++++\n",
-        region.start(),
-        region.end()
-    )
-    .unwrap();
+    write!(uart, "{:x} .. {:x}\n", region.start(), region.end()).unwrap();
 
     for mem in tree.memory_reservations() {
         write!(uart, "{:x} .. {:x}\n", region.start(), region.end()).unwrap();
@@ -64,6 +58,5 @@ unsafe extern "C" fn kinit(_hart_id: usize, fdt: *const u8) -> ! {
     #[cfg(test)]
     crate::test_main();
 
-    //windy_sbi::system::shutdown().unwrap();
     arch::exit(0)
 }

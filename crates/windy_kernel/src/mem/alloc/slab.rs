@@ -1,7 +1,8 @@
 //! Implementation of a Slab Allocator that
 //! is part of the main allocator for the kernel.
 
-use super::{AllocStats, Error, LinkedList, Result};
+use super::{AllocStats, Error, Result};
+use crate::mem::LinkedList;
 use core::ptr::NonNull;
 
 /// A slab holds many objects/blocks with a fixed size

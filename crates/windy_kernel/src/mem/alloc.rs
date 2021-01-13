@@ -6,9 +6,6 @@ pub use buddy::BuddyAllocator;
 mod slab;
 pub use slab::Slab;
 
-mod linked_list;
-pub use linked_list::{IterMut, LinkedList, ListNode};
-
 use crate::unit::{ByteUnit, KIB};
 use core::{
     fmt,

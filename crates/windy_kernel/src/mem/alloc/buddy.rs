@@ -2,7 +2,8 @@
 //! the physical memory that will then be used by either the slab allocator
 //! to allocate objects, or directly by the kernel.
 
-use super::{align_up, AllocStats, Error, LinkedList, Result};
+use super::{align_up, AllocStats, Error, Result};
+use crate::mem::LinkedList;
 use core::{cmp, mem, ptr, ptr::NonNull};
 
 /// The maximum order for the buddy allocator (inclusive).

@@ -10,7 +10,6 @@ windy_sbi = { path = "../windy_sbi" }
 windy_riscv = { path = "../windy_riscv" }
 windy_devicetree = { path = "../windy_devicetree" }
 register = { version = "1.0.2", features = ["no_std_unit_tests"] }
-linked_list_allocator = "0.8.11"
 
 [features]
 default = ["virt"]
