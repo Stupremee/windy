@@ -9,7 +9,8 @@
     exclusive_range_pattern,
     const_in_array_repeat_expressions,
     maybe_uninit_uninit_array,
-    const_fn_transmute
+    const_fn_transmute,
+    panic_info_message
 )]
 #![reexport_test_harness_main = "test_main"]
 #![test_runner(crate::testing::test_runner)]
