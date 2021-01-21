@@ -3,7 +3,10 @@
 read_csr!(pub 0x300);
 write_csr!(pub 0x300);
 
-csr_bits! { 0x300,
+set_csr!(0x300);
+clear_csr!(0x300);
+
+csr_bits! { _read, _write, _set, _clear,
     /// Enable interrupts in user mode.
     rw UIE: 0,
     /// Enable interrupts in supervisor mode.
