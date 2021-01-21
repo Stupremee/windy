@@ -166,6 +166,17 @@ macro_rules! csr_bits {
             unsafe { super::$write(bits) };
         }
 
+        /// Clear all bits this bitfield covers.
+        pub fn clear() {
+            use $crate::BitField;
+
+            let mut mask = 0usize;
+            let diff = $to - $from;
+            mask.set_bits($from..=$to, (1 << diff) - 1);
+            #[allow(unused_unsafe)]
+            unsafe { super::$clear(mask) };
+        }
+
         csr_bits!(@single_bit, $read, $write, $set, $clear, r $name: $from .. $to = $kind_name [
             $($kind_variant = $kind_val),*
         ]);
@@ -197,6 +208,13 @@ macro_rules! csr_bits {
             let bit = 1 << $bit;
             #[allow(unused_unsafe)]
             unsafe { super::$set(bit); }
+        }
+
+        /// Clear the bit of this bitfield inside the CSR.
+        pub fn clear() {
+            let bit = 1 << $bit;
+            #[allow(unused_unsafe)]
+            unsafe { super::$clear(bit); }
         }
 
         csr_bits!(@single_bit, $read, $write, $set, $clear, r $name: $bit);
