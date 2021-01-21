@@ -60,13 +60,16 @@ macro_rules! num_impl {
                 assert!(range.start < Self::BIT_LENGTH);
                 assert!(range.end <= Self::BIT_LENGTH);
                 assert!(range.start < range.end);
-                assert!(value << (Self::BIT_LENGTH - (range.end - range.start)) >>
-                        (Self::BIT_LENGTH - (range.end - range.start)) == value,
-                        "value does not fit into bit range");
+                assert!(
+                    value << (Self::BIT_LENGTH - (range.end - range.start))
+                        >> (Self::BIT_LENGTH - (range.end - range.start))
+                        == value,
+                    "value does not fit into bit range"
+                );
 
-                let bitmask: Self = !(!0 << (Self::BIT_LENGTH - range.end) >>
-                                    (Self::BIT_LENGTH - range.end) >>
-                                    range.start << range.start);
+                let bitmask: Self =
+                    !(!0 << (Self::BIT_LENGTH - range.end) >> (Self::BIT_LENGTH - range.end) >> range.start
+                        << range.start);
 
                 *self = (*self & bitmask) | (value << range.start);
             }

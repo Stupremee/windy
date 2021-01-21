@@ -108,16 +108,4 @@ macro_rules! csr_bits {
             bit & (1 << $bit) != 0
         }
     };
-
-    (@single_bit, $num:expr, r $name:ident: $bit:literal) => {
-        /// Get the value of this bit.
-        pub fn get() -> bool {
-            let bit: usize;
-            unsafe {
-                asm!("csrr {} {csr}", out(reg) bit, csr = const $num);
-            }
-
-            bit & (1 << $bit) != 0
-        }
-    };
 }
