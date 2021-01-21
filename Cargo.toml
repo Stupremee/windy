@@ -2,4 +2,4 @@
 members = [
     "crates/*",
 ]
-default-members = ["crates/windy_kernel"]
+default-members = ["crates/kernel"]

@@ -37,3 +37,34 @@ macro_rules! read_csr {
         }
     };
 }
+
+macro_rules! csr_mod {
+    (rw, $name:ident, $num:expr) => {
+        ::paste::paste! {
+            #[doc = "The `" $name "` CSR."]
+            pub mod $name {
+                read_csr!(
+                    #[doc = "Reads the raw value from the `" $name "` register."]
+                    pub $num
+                );
+
+                write_csr!(
+                    #[doc = "Writes the raw value into the `" $name "` register."]
+                    pub $num
+                );
+            }
+        }
+    };
+
+    (r, $name:ident, $num:expr) => {
+        ::paste::paste! {
+            #[doc = "The `" $name "` CSR."]
+            pub mod $name {
+                read_csr!(
+                    #[doc = "Reads the raw value from the `" $name "` register."]
+                    pub $num
+                );
+            }
+        }
+    };
+}

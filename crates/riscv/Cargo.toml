@@ -1,9 +1,9 @@
 [package]
-name = "windy_riscv"
+name = "riscv"
 version = "0.1.0"
 description = "RISC-V Architecture specific components."
 authors = ["Justus K <justus.k@protonmail.com>"]
 edition = "2018"
 
 [dependencies]
-register = { version = "1.0.2", features = ["no_std_unit_tests"] }
+paste = "1.0.4"

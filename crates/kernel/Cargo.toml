@@ -1,14 +1,14 @@
 [package]
-name = "windy_kernel"
+name = "kernel"
 version = "0.1.0"
 description = "The actual Kernel for Windy"
 authors = ["Justus K <justus.k@protonmail.com>"]
 edition = "2018"
 
 [dependencies]
-windy_sbi = { path = "../windy_sbi" }
-windy_riscv = { path = "../windy_riscv" }
-windy_devicetree = { path = "../windy_devicetree" }
+sbi = { path = "../sbi" }
+riscv = { path = "../riscv" }
+devicetree = { path = "../devicetree" }
 register = { version = "1.0.2", features = ["no_std_unit_tests"] }
 
 [features]

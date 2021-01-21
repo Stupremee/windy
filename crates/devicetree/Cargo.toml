@@ -1,5 +1,5 @@
 [package]
-name = "windy_devicetree"
+name = "devicetree"
 version = "0.1.0"
 description = "Implementation of the Flattenede Device Tree format"
 authors = ["Justus K <justus.k@protonmail.com>"]
