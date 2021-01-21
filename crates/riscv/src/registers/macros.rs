@@ -2,6 +2,7 @@ macro_rules! write_csr {
     ($(#[$meta:meta])* pub $number:expr) => {
         write_csr!($number);
 
+        /// Writes the raw valuue into this CSR.
         $(#[$meta])*
         pub fn write(bits: usize) {
             unsafe { _write(bits) };
@@ -21,6 +22,7 @@ macro_rules! read_csr {
     ($(#[$meta:meta])* pub $number:expr) => {
         read_csr!($number);
 
+        /// Read the raw bits out of this CSR.
         $(#[$meta])*
         pub fn read() -> usize {
             unsafe { _read() }
@@ -65,6 +67,57 @@ macro_rules! csr_mod {
                     pub $num
                 );
             }
+        }
+    };
+}
+
+macro_rules! csr_bits {
+    ($num:expr, $(
+        $(#[$attr:meta])*
+        $perm:ident $name:ident: $bit:literal $(.. $to_bit:literal)?
+    ),* $(,)?) => {
+        $(
+            $(#[$attr])*
+            #[allow(non_snake_case)]
+            pub mod $name {
+                csr_bits!(@single_bit, $num, $perm $name: $bit);
+            }
+        )*
+    };
+
+    (@single_bit, $num:expr, rw $name:ident: $bit:literal) => {
+        /// Set the single bit to `true`/`1`.
+        pub fn set() {
+            let bit = 1 << $bit;
+            unsafe {
+                asm!("csrs {csr} {}", inout(reg) bit => _, csr = const $num);
+            }
+        }
+
+        csr_bits!(@single_bit, $num, r $name: $bit);
+    };
+
+    (@single_bit, $num:expr, r $name:ident: $bit:literal) => {
+        /// Get the value of this bit.
+        pub fn get() -> bool {
+            let bit: usize;
+            unsafe {
+                asm!("csrr {} {csr}", out(reg) bit, csr = const $num);
+            }
+
+            bit & (1 << $bit) != 0
+        }
+    };
+
+    (@single_bit, $num:expr, r $name:ident: $bit:literal) => {
+        /// Get the value of this bit.
+        pub fn get() -> bool {
+            let bit: usize;
+            unsafe {
+                asm!("csrr {} {csr}", out(reg) bit, csr = const $num);
+            }
+
+            bit & (1 << $bit) != 0
         }
     };
 }

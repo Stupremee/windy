@@ -4,6 +4,9 @@
 #![no_std]
 #![feature(asm, cfg_target_has_atomic)]
 
+mod bitfield;
+pub use bitfield::BitField;
+
 pub mod registers;
 pub mod symbols;
 pub mod trap;
