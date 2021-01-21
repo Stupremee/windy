@@ -74,15 +74,66 @@ macro_rules! csr_mod {
 macro_rules! csr_bits {
     ($num:expr, $(
         $(#[$attr:meta])*
-        $perm:ident $name:ident: $bit:literal $(.. $to_bit:literal)?
+        $perm:ident $name:ident: $from:literal $(.. $to:literal =
+            $(#[$kind_attr:meta])*
+            $kind_name:ident [
+                $(
+                    $(#[$kind_variant_attr:meta])*
+                    $kind_variant:ident = $kind_val:expr
+                ),*$(,)?
+            ]
+        )?
     ),* $(,)?) => {
+        $($(
+            $(#[$kind_attr])*
+            #[derive(Clone, Copy, Debug)]
+            pub enum $kind_name {
+                $(
+                    $(#[$kind_variant_attr])*
+                    $kind_variant
+                ),*
+            }
+        )*)?
+
         $(
-            $(#[$attr])*
-            #[allow(non_snake_case)]
-            pub mod $name {
-                csr_bits!(@single_bit, $num, $perm $name: $bit);
+            ::paste::paste! {
+                $(#[$attr])*
+                pub mod [< $name:lower >] {
+                    csr_bits!(@single_bit, $num, $perm $name: $from);
+                }
             }
         )*
+    };
+
+    ($num:expr, $(
+        $(#[$attr:meta])*
+        $perm:ident $name:ident: $from:literal to $to:literal =
+            $(#[$kind_attr:meta])*
+            $kind_name:ident [
+                $(
+                    $(#[$kind_variant_attr:meta])*
+                    $kind_variant:ident = $kind_val:expr
+                ),*$(,)?
+            ]
+    ),* $(,)?) => {
+        $(
+            $(#[$kind_attr])*
+            #[derive(Clone, Copy, Debug)]
+            pub enum $kind_name {
+                $(
+                    $(#[$kind_variant_attr])*
+                    $kind_variant
+                ),*
+            }
+        )*
+
+        //$(
+            //$(#[$attr])*
+            //#[allow(non_snake_case)]
+            //pub mod $name {
+                //csr_bits!(@single_bit, $num, $perm $name: $bit);
+            //}
+        //)*
     };
 
     (@single_bit, $num:expr, rw $name:ident: $bit:literal) => {
