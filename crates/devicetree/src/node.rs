@@ -244,7 +244,7 @@ impl<'tree> MemoryRegions<'tree> {
     fn read<const N: usize>(&mut self) -> Option<[u8; N]> {
         let bytes = self.data.get(..N)?;
         self.data = &self.data[N..];
-        Some(bytes.try_into().ok()?)
+        bytes.try_into().ok()
     }
 
     fn read_num(&mut self, count: NonZeroU32) -> Option<usize> {

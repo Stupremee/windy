@@ -7,9 +7,6 @@
     naked_functions,
     custom_test_frameworks,
     exclusive_range_pattern,
-    const_in_array_repeat_expressions,
-    maybe_uninit_uninit_array,
-    const_fn_transmute,
     panic_info_message
 )]
 #![reexport_test_harness_main = "test_main"]
@@ -23,11 +20,9 @@ compile_error!("Windy can only run on systems that have atomic support");
 
 pub mod arch;
 pub mod drivers;
-pub mod mem;
 pub mod unit;
 
 mod boot;
-mod macros;
 mod panic;
 #[cfg(test)]
 mod testing;

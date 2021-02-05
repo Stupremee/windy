@@ -11,18 +11,27 @@ pub const GIB: usize = 1 << 30;
 /// `1 TiB`
 pub const TIB: usize = 1 << 40;
 
+/// Return a formattable type that will pretty-print the given amount of bytes.
+pub fn bytes<I: Into<usize> + Copy>(x: I) -> impl fmt::Display {
+    ByteUnit(x)
+}
+
 /// Wrapper around raw byte that pretty-prints
 /// them using the [`Display`](core::fmt::Display)
 /// implementation.
 #[derive(Debug, Clone, Copy)]
-pub struct ByteUnit(pub usize);
+pub struct ByteUnit<I>(I);
 
-impl fmt::Display for ByteUnit {
+impl<I> fmt::Display for ByteUnit<I>
+where
+    I: Into<usize> + Copy,
+{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let count = self.0 as f32;
+        let this = Into::<usize>::into(self.0);
+        let count = this as f32;
 
-        match self.0 {
-            0..KIB => write!(f, "{} B", self.0)?,
+        match this {
+            0..KIB => write!(f, "{} B", this)?,
             KIB..MIB => write!(f, "{:.2} KiB", count / KIB as f32)?,
             MIB..GIB => write!(f, "{:.2} MiB", count / MIB as f32)?,
             GIB..TIB => write!(f, "{:.2} GiB", count / GIB as f32)?,

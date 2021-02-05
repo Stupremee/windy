@@ -9,7 +9,11 @@ ENTRY(_boot)
 
 MEMORY
 {
-  /* Add 0x200000 here because OpenSBI will jump to this address since we are using fw_dynamic */
+  /*
+   * Add 0x200000 here because OpenSBI will jump to this address since we are using fw_dynamic
+   *
+   * NOTE: Do not change format of `LENGTH = <x>M`, otherwise the build script will fail.
+   */
   ram : ORIGIN = 0x80000000 + 0x200000, LENGTH = 128M
 }
 
@@ -20,7 +24,7 @@ SECTIONS
     *(.text.init)
     *(.text)
     *(.text.*)
-    . = ALIGN(4096);
+    . = ALIGN(0x1000);
     PROVIDE(__text_end = .);
   } >ram AT>ram :text
 
@@ -30,17 +34,18 @@ SECTIONS
     PROVIDE(__rodata_start = .);
     *(.rodata)
     *(.rodata.*)
+    . = ALIGN(0x1000);
     PROVIDE(__rodata_end = .);
   } >ram AT>ram :text
 
   .data : {
-    . = ALIGN(4096);
     PROVIDE(__data_start = .);
     *(.sdata)
     *(.sdata.*)
 
     *(.data)
     *(.data.*)
+    . = ALIGN(0x1000);
     PROVIDE(__data_end = .);
 
     /* `__trap_stack` is used inside the trap handler for saving the trap 
@@ -60,11 +65,5 @@ SECTIONS
     PROVIDE(__bss_end = .);
   } >ram AT>ram :bss
 
-  PROVIDE(__memory_start = ORIGIN(ram));
-  PROVIDE(__stack_start = __bss_end);
-  PROVIDE(__stack_end = __stack_start + 0x80000);
-  PROVIDE(__memory_end = ORIGIN(ram) + LENGTH(ram));
-
-  PROVIDE(__heap_start = __stack_end);
-  PROVIDE(__heap_size = __memory_end - __heap_start);
+  __kernel_end = ALIGN(0x1000);
 }
