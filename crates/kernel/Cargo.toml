@@ -9,7 +9,6 @@ edition = "2018"
 sbi = { path = "../sbi" }
 riscv = { path = "../riscv" }
 devicetree = { path = "../devicetree" }
-register = { version = "1.0.2", features = ["no_std_unit_tests"] }
 
 [features]
 default = ["virt"]

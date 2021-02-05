@@ -32,27 +32,8 @@ mod panic;
 #[cfg(test)]
 mod testing;
 
-use self::mem::alloc::GlobalAllocator;
-use core::{fmt::Write, ptr::NonNull};
-use windy_devicetree::DeviceTree;
-
 #[no_mangle]
-unsafe extern "C" fn kinit(_hart_id: usize, fdt: *const u8) -> ! {
-    let mut uart = drivers::ns16550::Uart::new(0x1000_0000 as *mut _);
-    let mut alloc = GlobalAllocator::new();
-
-    let tree = DeviceTree::from_ptr(fdt).unwrap();
-    let root = tree.memory();
-    let region = root.regions().next().unwrap();
-
-    let start = NonNull::new_unchecked(region.start() as *mut u8);
-    let end = NonNull::new_unchecked(region.end() as *mut u8);
-    write!(uart, "{:x} .. {:x}\n", region.start(), region.end()).unwrap();
-
-    for mem in tree.memory_reservations() {
-        write!(uart, "{:x} .. {:x}\n", region.start(), region.end()).unwrap();
-    }
-
+unsafe extern "C" fn kinit(_hart_id: usize, _fdt: *const u8) -> ! {
     //alloc.init(start, end).unwrap();
     //write!(uart, "{}\n", alloc.stats()).unwrap();
 

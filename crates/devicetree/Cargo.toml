@@ -6,4 +6,3 @@ authors = ["Justus K <justus.k@protonmail.com>"]
 edition = "2018"
 
 [dependencies]
-memchr = { version = "2.3.4", default-features = false }

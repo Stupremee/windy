@@ -337,6 +337,11 @@ impl MemoryReservation {
     }
 }
 
+/// Search for the first occurrence of `needle` inside `haystack`.
+pub fn memchr(needle: u8, haystack: &[u8]) -> Option<usize> {
+    haystack.iter().position(|&x| x == needle)
+}
+
 /// Aligns up the `val` to the given alignment.
 pub(crate) fn align_up(val: usize, alignment: usize) -> usize {
     let up = val + (alignment - 1);
@@ -344,14 +349,14 @@ pub(crate) fn align_up(val: usize, alignment: usize) -> usize {
 }
 
 pub(crate) unsafe fn next_str(bytes: &[u8]) -> Option<&str> {
-    let nul_pos = memchr::memchr(0x00, bytes)?;
+    let nul_pos = memchr(0x00, bytes)?;
     let str_bytes = &bytes[..nul_pos];
 
     Some(core::str::from_utf8_unchecked(str_bytes))
 }
 
 pub(crate) fn next_str_checked(bytes: &[u8]) -> Option<&str> {
-    let nul_pos = memchr::memchr(0x00, bytes)?;
+    let nul_pos = memchr(0x00, bytes)?;
     let str_bytes = &bytes[..nul_pos];
 
     core::str::from_utf8(str_bytes).ok()

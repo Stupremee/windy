@@ -7,7 +7,7 @@
 let
   inherit (pkgs) stdenv fetchFromGitHub;
 
-  version = "0d49c3b";
+  version = "master";
 in stdenv.mkDerivation rec {
   name = "opensbi";
   inherit version;
@@ -15,7 +15,7 @@ in stdenv.mkDerivation rec {
   src = fetchFromGitHub {
     owner = "riscv";
     repo = name;
-    rev = "${version}";
+    rev = "234ed8e427f4d92903123199f6590d144e0d9351";
     sha256 = "sha256-uqljriqyM2ydl6RCJvies+QphLmK7ytF1JJz4U8FGBQ=";
   };
 

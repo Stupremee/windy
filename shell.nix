@@ -22,5 +22,5 @@ let
 in pkgs.mkShell {
   name = "rust-shell";
   nativeBuildInputs = with pkgs;
-    [ rust-analyzer rust llvm_11 qemu python3 cargo-expand ] ++ [ runQemu ];
+    [ rust llvm_11 qemu python3 cargo-expand ] ++ [ runQemu ];
 }

@@ -6,4 +6,3 @@ authors = ["Justus K <justus.k@protonmail.com>"]
 edition = "2018"
 
 [dependencies]
-paste = "1.0.4"
