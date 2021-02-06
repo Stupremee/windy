@@ -66,4 +66,7 @@ SECTIONS
   } >ram AT>ram :bss
 
   __kernel_end = ALIGN(0x1000);
+
+  PROVIDE(__stack_start = __bss_end);
+  PROVIDE(__stack_end = __stack_start + 0x80000);
 }

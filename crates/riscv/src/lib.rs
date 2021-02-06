@@ -9,4 +9,5 @@ pub use bitfield::BitField;
 
 pub mod registers;
 pub mod symbols;
+pub mod sync;
 pub mod trap;

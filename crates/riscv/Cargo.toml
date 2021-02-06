@@ -6,3 +6,5 @@ authors = ["Justus K <justus.k@protonmail.com>"]
 edition = "2018"
 
 [dependencies]
+spin = { version = "0.7", default-features = false, features = ["lock_api"] }
+lock_api = { version = "0.4", features = ["nightly"] }
