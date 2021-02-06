@@ -50,6 +50,9 @@ mod registers {
     }
 }
 
+/// The list of names that this device is compatible with.
+pub const COMPATIBLE: &[&str] = &["ns16550a", "ns16550"];
+
 /// Driver for the `ns16550a` chip.
 pub struct Device {
     regs: Registers,
@@ -78,16 +81,8 @@ impl Device {
         // TODO:
         // enable data available interrupt
         // self.regs.ier().modify(IER::DATA_READY::SET);
-    }
 
-    /// Set the baud rate that is used for transmitting data.
-    ///
-    /// `rate` is the new baud rate, and `clock` must be the frequency of
-    /// the clock that is driving this uart device.
-    pub fn set_baud_rate(&mut self, rate: u32, clock: u32) {
-        // calculate the divisor using the formular and then
-        // split into lower and higher bytes.
-        let divisor = (clock / (rate * 16)) as u16;
+        let divisor = 592;
         let low = (divisor & 0xFF) as u8;
         let high = (divisor >> 8) as u8;
 
@@ -116,14 +111,13 @@ impl Device {
 
     /// Tries to send data but will fail if the transmitter is not empty.
     ///
-    /// Returns `Some(x)` with the given value if the transmitter was not empty
-    /// and the data couldn't be send.
-    pub fn try_write(&mut self, x: u8) -> Option<u8> {
+    /// Returns true if it successfully transmitted the byte.
+    pub fn try_write(&mut self, x: u8) -> bool {
         if self.transmitter_empty() {
             unsafe { self.write_data(x) };
-            None
+            true
         } else {
-            Some(x)
+            false
         }
     }
 

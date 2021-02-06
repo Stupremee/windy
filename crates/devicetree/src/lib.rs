@@ -5,7 +5,7 @@ pub mod node;
 pub mod parse;
 
 use self::{
-    node::{MemoryNode, Node},
+    node::Node,
     parse::{Token, TokenIter},
 };
 use core::{cell::Cell, convert::TryInto, marker::PhantomData};
@@ -23,9 +23,9 @@ impl From<u32> for PHandle {
     }
 }
 
-impl Into<u32> for PHandle {
-    fn into(self) -> u32 {
-        self.0
+impl From<PHandle> for u32 {
+    fn from(x: PHandle) -> u32 {
+        x.0
     }
 }
 
@@ -91,12 +91,22 @@ impl<'tree> DeviceTree<'tree> {
 
     /// Returns the memory node of this device tree which
     /// can be used to get all memory regions.
-    pub fn memory(&'tree self) -> MemoryNode<'tree> {
-        MemoryNode {
+    pub fn memory(&'tree self) -> node::MemoryNode<'tree> {
+        node::MemoryNode {
             tree: self,
             node: self
                 .find_node("/memory")
                 .expect("there must be a `/memory` node"),
+        }
+    }
+
+    /// Returns the `/chosen` node of this device tree.
+    pub fn chosen(&'tree self) -> node::ChosenNode<'tree> {
+        node::ChosenNode {
+            tree: self,
+            node: self
+                .find_node("/chosen")
+                .expect("there must be a `/chosen` node"),
         }
     }
 

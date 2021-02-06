@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 macro_rules! write_csr {
     ($(#[$meta:meta])* pub $number:expr) => {
         write_csr!($number);

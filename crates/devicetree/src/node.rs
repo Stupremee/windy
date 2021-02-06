@@ -50,6 +50,22 @@ impl<'tree> Node<'tree> {
         }
         .fuse()
     }
+
+    /// Returns an iterator over all regions that are specified in this nodes `reg` property.
+    pub fn regions(&self) -> Regions<'tree> {
+        let address_cells = self.tree.root().prop("#address-cells");
+        let size_cells = self.tree.root().prop("#size-cells");
+        let data = self
+            .prop("reg")
+            .map(|prop| prop.as_bytes())
+            .unwrap_or_default();
+
+        Regions {
+            address_cells: address_cells.and_then(|prop| NonZeroU32::new(prop.as_u32()?)),
+            size_cells: size_cells.and_then(|prop| NonZeroU32::new(prop.as_u32()?)),
+            data,
+        }
+    }
 }
 
 /// A property of a [`Node`].
@@ -182,6 +198,7 @@ impl<'tree> Iterator for Properties<'tree> {
 }
 
 /// An iterator over all the strings inside the string table.
+#[derive(Clone)]
 pub struct Strings<'tree> {
     table: &'tree [u8],
 }
@@ -213,34 +230,16 @@ impl<'tree> MemoryNode<'tree> {
     pub fn node(&self) -> Node<'tree> {
         self.node.clone()
     }
-
-    /// Returns an iterator over all memory regions that are specified
-    /// in this memory node.
-    pub fn regions(&self) -> MemoryRegions<'tree> {
-        let address_cells = self.tree.root().prop("#address-cells");
-        let size_cells = self.tree.root().prop("#size-cells");
-        let data = self
-            .node
-            .prop("reg")
-            .map(|prop| prop.as_bytes())
-            .unwrap_or_default();
-
-        MemoryRegions {
-            address_cells: address_cells.and_then(|prop| NonZeroU32::new(prop.as_u32()?)),
-            size_cells: size_cells.and_then(|prop| NonZeroU32::new(prop.as_u32()?)),
-            data,
-        }
-    }
 }
 
-/// Iterator over all regions of a [`MemoryNode`].
-pub struct MemoryRegions<'tree> {
+/// Iterator over all regions of a `reg` property.
+pub struct Regions<'tree> {
     address_cells: Option<NonZeroU32>,
     size_cells: Option<NonZeroU32>,
     data: &'tree [u8],
 }
 
-impl<'tree> MemoryRegions<'tree> {
+impl<'tree> Regions<'tree> {
     fn read<const N: usize>(&mut self) -> Option<[u8; N]> {
         let bytes = self.data.get(..N)?;
         self.data = &self.data[N..];
@@ -258,12 +257,12 @@ impl<'tree> MemoryRegions<'tree> {
 
 /// A single region of memory.
 #[derive(Clone, Debug)]
-pub struct MemoryRegion {
+pub struct Region {
     start: usize,
     size: usize,
 }
 
-impl MemoryRegion {
+impl Region {
     /// Return the start address of this memory region.
     pub fn start(&self) -> usize {
         self.start
@@ -280,12 +279,43 @@ impl MemoryRegion {
     }
 }
 
-impl Iterator for MemoryRegions<'_> {
-    type Item = MemoryRegion;
+impl Iterator for Regions<'_> {
+    type Item = Region;
 
     fn next(&mut self) -> Option<Self::Item> {
         let start = self.read_num(self.address_cells?)?;
         let size = self.read_num(self.size_cells?)?;
-        Some(MemoryRegion { start, size })
+        Some(Region { start, size })
+    }
+}
+
+/// The `/chosen` node inside a device tree
+#[derive(Clone)]
+pub struct ChosenNode<'tree> {
+    pub(super) tree: &'tree DeviceTree<'tree>,
+    pub(super) node: Node<'tree>,
+}
+
+impl<'tree> ChosenNode<'tree> {
+    /// Return the boot arguments for this node.
+    pub fn bootargs(&self) -> Option<&'tree str> {
+        let args = self.node.prop("bootargs")?.as_str()?;
+        if args.is_empty() {
+            None
+        } else {
+            Some(args)
+        }
+    }
+
+    /// Return the `stdout` node if there is one.
+    pub fn stdout(&self) -> Option<Node<'tree>> {
+        let path = self.node.prop("stdout-path")?.as_str()?;
+        self.tree.find_node(path)
+    }
+
+    /// Return the `stdin` node if there is one.
+    pub fn stdin(&self) -> Option<Node<'tree>> {
+        let path = self.node.prop("stdin-path")?.as_str()?;
+        self.tree.find_node(path)
     }
 }
