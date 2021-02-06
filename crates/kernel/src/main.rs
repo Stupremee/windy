@@ -34,10 +34,6 @@ use devicetree::DeviceTree;
 unsafe extern "C" fn kinit(_hart_id: usize, fdt: *const u8) -> ! {
     let tree = DeviceTree::from_ptr(fdt).unwrap();
 
-    console::init(&tree);
-
-    println!("foo");
-
     #[cfg(test)]
     crate::test_main();
 

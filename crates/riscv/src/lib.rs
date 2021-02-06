@@ -7,7 +7,8 @@
 mod bitfield;
 pub use bitfield::BitField;
 
-pub mod registers;
+pub mod asm;
+pub mod csr;
 pub mod symbols;
 pub mod sync;
 pub mod trap;

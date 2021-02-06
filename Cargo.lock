@@ -48,8 +48,7 @@ dependencies = [
 name = "riscv"
 version = "0.1.0"
 dependencies = [
- "lock_api",
- "spin",
+ "spinning_top",
 ]
 
 [[package]]
@@ -74,10 +73,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d29ab0c6d3fc0ee92fe66e2d99f700eab17a8d57d1c1d3b748380fb20baa78cd"
 
 [[package]]
-name = "spin"
-version = "0.7.1"
+name = "spinning_top"
+version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "13287b4da9d1207a4f4929ac390916d64eacfe236a487e9a9f5b3be392be5162"
+checksum = "7e529d73e80d64b5f2631f9035113347c578a1c9c7774b83a2b880788459ab36"
 dependencies = [
  "lock_api",
 ]
