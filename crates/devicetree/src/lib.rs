@@ -91,13 +91,9 @@ impl<'tree> DeviceTree<'tree> {
 
     /// Returns the memory node of this device tree which
     /// can be used to get all memory regions.
-    pub fn memory(&'tree self) -> node::MemoryNode<'tree> {
-        node::MemoryNode {
-            tree: self,
-            node: self
-                .find_node("/memory")
-                .expect("there must be a `/memory` node"),
-        }
+    pub fn memory(&'tree self) -> Node<'tree> {
+        self.find_node("/memory")
+            .expect("there must be a `/memory` node")
     }
 
     /// Returns the `/chosen` node of this device tree.

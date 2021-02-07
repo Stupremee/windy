@@ -218,20 +218,6 @@ impl<'tree> Iterator for Strings<'tree> {
     }
 }
 
-/// The `/memory` node inside a device tree
-#[derive(Clone)]
-pub struct MemoryNode<'tree> {
-    pub(super) tree: &'tree DeviceTree<'tree>,
-    pub(super) node: Node<'tree>,
-}
-
-impl<'tree> MemoryNode<'tree> {
-    /// A copy of the underyling [`Node`] of this memory node.
-    pub fn node(&self) -> Node<'tree> {
-        self.node.clone()
-    }
-}
-
 /// Iterator over all regions of a `reg` property.
 pub struct Regions<'tree> {
     address_cells: Option<NonZeroU32>,

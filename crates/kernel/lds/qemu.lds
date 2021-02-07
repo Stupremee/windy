@@ -20,6 +20,8 @@ MEMORY
 SECTIONS
 {
   .text : {
+    PROVIDE(__kernel_start = .);
+
     PROVIDE(__text_start = .);
     *(.text.init)
     *(.text)
@@ -65,8 +67,8 @@ SECTIONS
     PROVIDE(__bss_end = .);
   } >ram AT>ram :bss
 
-  __kernel_end = ALIGN(0x1000);
-
   PROVIDE(__stack_start = __bss_end);
   PROVIDE(__stack_end = __stack_start + 0x80000);
+
+  PROVIDE(__kernel_end = ALIGN(0x1000));
 }

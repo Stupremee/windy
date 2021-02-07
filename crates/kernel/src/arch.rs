@@ -5,10 +5,10 @@ mod virt;
 #[cfg(feature = "virt")]
 pub use virt::*;
 
-/// Loop forever
+// Loop forever
 #[inline]
 pub fn wait_forever() -> ! {
     loop {
-        unsafe { asm!("wfi") }
+        riscv::asm::wfi();
     }
 }
