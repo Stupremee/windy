@@ -5,9 +5,16 @@ mod linked_list;
 pub use linked_list::{IterMut, LinkedList, ListNode};
 
 pub mod alloc;
+pub use alloc::Error as AllocError;
 
 use core::array;
 use devicetree::DeviceTree;
+
+/// Errors that are related to memory management.
+pub enum Error {
+    RangeSet(RangeError),
+    Alloc(AllocError),
+}
 
 /// Initialize the global memory allocator.
 pub fn init(tree: &DeviceTree<'_>) -> Result<(), RangeError> {
@@ -23,8 +30,6 @@ pub fn init(tree: &DeviceTree<'_>) -> Result<(), RangeError> {
         memory.remove_range(range)?;
         Ok(())
     })?;
-
-    crate::println!("{:x?}", memory);
 
     Ok(())
 }

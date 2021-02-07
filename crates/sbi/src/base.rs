@@ -9,8 +9,8 @@ fn sbi_call(fid: u32) -> SbiResult<usize> {
     let (value, err_code): (usize, isize);
     unsafe {
         asm!("ecall",
-            in("a7") EXTENSION_ID,
-            in("a6") fid,
+            inout("a7") EXTENSION_ID => _,
+            inout("a6") fid => _,
             out("a0") err_code,
             out("a1") value
         );
@@ -46,8 +46,8 @@ pub fn probe_ext(ext: u32) -> SbiResult<bool> {
     let (value, err_code): (usize, usize);
     unsafe {
         asm!("ecall",
-            in("a7") EXTENSION_ID,
-            in("a6") 0x03,
+            inout("a7") EXTENSION_ID => _,
+            inout("a6") 0x03 => _,
             inout("a0") ext as usize => err_code,
             out("a1") value,
         );

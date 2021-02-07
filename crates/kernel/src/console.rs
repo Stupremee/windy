@@ -7,7 +7,7 @@ use core::fmt::{self, Write};
 use devicetree::{node::ChosenNode, DeviceTree};
 use riscv::sync::Mutex;
 
-static CONSOLE: Mutex<StaticConsoleDevice> = Mutex::new(StaticConsoleDevice(None));
+pub static CONSOLE: Mutex<StaticConsoleDevice> = Mutex::new(StaticConsoleDevice(None));
 
 /// Console device that can be used inside a static context.
 pub struct StaticConsoleDevice(Option<ConsoleDevice>);
@@ -16,21 +16,20 @@ impl StaticConsoleDevice {
     /// Write the given byte into this device.
     ///
     /// If it hasn't initialized yet, it will be a no-op.
-    pub fn write(&mut self, x: u8) {
+    pub fn write(&mut self, s: &str) -> fmt::Result {
         if let Some(ref mut dev) = self.0 {
             match dev {
-                ConsoleDevice::NS16550(dev) => dev.write(x),
+                ConsoleDevice::NS16550(dev) => dev.write_str(s),
             }
+        } else {
+            Ok(())
         }
     }
 }
 
 impl fmt::Write for StaticConsoleDevice {
     fn write_str(&mut self, s: &str) -> fmt::Result {
-        for x in s.as_bytes() {
-            self.write(*x);
-        }
-        Ok(())
+        self.write(s)
     }
 }
 
@@ -70,10 +69,15 @@ impl ConsoleDevice {
 
 /// Initializes the global console by finding the right device that should
 /// be used according to the given `/chosen` node of the given tree.
-pub fn init(tree: &DeviceTree<'_>) {
+///
+/// Returns `true` if there was a stdout device.
+pub fn init(tree: &DeviceTree<'_>) -> bool {
     if let Some(mut dev) = unsafe { ConsoleDevice::from_chosen(&tree.chosen()) } {
         dev.init();
         CONSOLE.lock().0 = Some(dev);
+        true
+    } else {
+        false
     }
 }
 

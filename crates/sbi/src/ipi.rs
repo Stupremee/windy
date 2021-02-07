@@ -10,10 +10,10 @@ pub fn send_ipi(hart_mask: usize, hart_mask_base: usize) -> SbiResult<()> {
     let err_code: usize;
     unsafe {
         asm!("ecall",
-            in("a7") EXTENSION_ID,
-            in("a6") 0x00,
+            inout("a7") EXTENSION_ID => _,
+            inout("a6") 0x00 => _,
 
-            in("a1") hart_mask_base,
+            inout("a1") hart_mask_base => _,
             inout("a0") hart_mask => err_code,
         );
     }

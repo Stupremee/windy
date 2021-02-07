@@ -5,6 +5,7 @@ pub use buddy::BuddyAllocator;
 
 use crate::unit::{self, KIB};
 use core::fmt;
+use displaydoc_lite::displaydoc;
 
 /// The size of a single page in memory.
 ///
@@ -15,27 +16,18 @@ pub const PAGE_SIZE: usize = 4 * KIB;
 /// Result for every memory allocation operation.
 pub type Result<T, E = Error> = core::result::Result<T, E>;
 
-/// Any error that can happen while allocating or deallocating memory.
-#[derive(Debug)]
-pub enum Error {
-    /// Tried to add a region to an allocator that was too small.
-    RegionTooSmall,
-    /// The `end` pointer of a memory region was before the `start` pointer.
-    InvalidRegion,
-    /// Tried to allocate an order that exceeded the maximum order.
-    OrderTooLarge,
-    /// Tried to allocate, but there was no free memory left.
-    NoMemoryAvailable,
-}
-
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Error::RegionTooSmall => f.write_str("memory region that was to small"),
-            Error::InvalidRegion => f.write_str("region end pointer was before the start pointer"),
-            Error::OrderTooLarge => f.write_str("the order that exceeded the maximum"),
-            Error::NoMemoryAvailable => f.write_str("there's no free memory left"),
-        }
+displaydoc! {
+    /// Any error that can happen while allocating or deallocating memory.
+    #[derive(Debug)]
+    pub enum Error {
+        /// tried to add a region to an allocator that was too small.
+        RegionTooSmall,
+        /// the `end` pointer of a memory region was before the `start` pointer.
+        InvalidRegion,
+        /// tried to allocate an order that exceeded the maximum order.
+        OrderTooLarge,
+        /// tried to allocate, but there was no free memory left.
+        NoMemoryAvailable,
     }
 }
 

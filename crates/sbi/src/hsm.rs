@@ -14,12 +14,11 @@ pub fn start(hart_id: usize, start_addr: usize, arg: usize) -> SbiResult<()> {
     unsafe {
         asm!(
             "ecall",
-            in("a0") hart_id,
-            in("a1") start_addr,
-            in("a2") arg,
+            inlateout("a0") hart_id => err_code,
+            inout("a1") start_addr => _,
+            inout("a2") arg => _,
             inout("a6") 0 => _,
             inout("a7") EXTENSION_ID => _,
-            lateout("a0") err_code,
         );
     }
     Error::from_sbi_call((), err_code)
@@ -32,8 +31,8 @@ pub fn stop() -> SbiResult<!> {
     let err_code: usize;
     unsafe {
         asm!("ecall",
-            in("a7") EXTENSION_ID,
-            in("a6") 0x01,
+            inout("a7") EXTENSION_ID => _,
+            inout("a6") 0x01 => _,
             out("a0") err_code,
         );
     }
@@ -64,8 +63,8 @@ pub fn status(hart_id: usize) -> SbiResult<Status> {
     let (value, err_code): (usize, usize);
     unsafe {
         asm!("ecall",
-            in("a7") EXTENSION_ID,
-            in("a6") 0x02,
+            inout("a7") EXTENSION_ID => _,
+            inout("a6") 0x02 => _,
             inout("a0") hart_id => err_code,
             out("a1") value,
         );

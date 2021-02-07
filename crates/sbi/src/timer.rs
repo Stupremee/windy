@@ -10,8 +10,8 @@ pub fn set_timer(stime: u64) -> SbiResult<()> {
     let err_code: usize;
     unsafe {
         asm!("ecall",
-            in("a7") EXTENSION_ID,
-            in("a6") 0x00,
+            inout("a7") EXTENSION_ID => _,
+            inout("a6") 0x00 => _,
             inout("a0") stime as usize => err_code,
         );
     }

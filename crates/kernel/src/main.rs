@@ -28,15 +28,42 @@ mod boot;
 mod panic;
 
 use devicetree::DeviceTree;
+use displaydoc_lite::displaydoc;
 
+/// The entry point for the booting hart.
 #[no_mangle]
-unsafe extern "C" fn kinit(_hart_id: usize, fdt: *const u8) -> ! {
-    let tree = DeviceTree::from_ptr(fdt).unwrap();
+unsafe extern "C" fn kinit(hart_id: usize, fdt: *const u8) -> ! {
+    match windy_main(hart_id, fdt) {
+        Ok(()) => arch::exit(0),
+        Err(err) => {
+            error!("Failed to initialize kernel: {}", err.red());
+            error!(
+                "{} error happened while starting the kernel, exiting...",
+                "Fatal".red()
+            );
+            arch::exit(1)
+        }
+    }
+}
 
-    console::init(&tree);
+/// The "safe" entry point for the kernel.
+fn windy_main(_hart_id: usize, fdt: *const u8) -> Result<(), FatalError> {
+    let tree = unsafe { DeviceTree::from_ptr(fdt) };
+    let tree = tree.ok_or(FatalError::InvalidDeviceTree)?;
+
+    if console::init(&tree) {
+        info!("{} Uart console", "Initialized".green());
+    }
+
     mem::init(&tree).unwrap();
 
-    println!("booting on {}", _hart_id);
+    Ok(())
+}
 
-    arch::exit(0)
+displaydoc! {
+    /// Any error that will cause the kernel to exit.
+    pub enum FatalError {
+        /// The received device tree was invalid.
+        InvalidDeviceTree,
+    }
 }

@@ -43,11 +43,11 @@ pub fn reset(type_: Type, reason: Reason) -> SbiResult<!> {
 
     unsafe {
         asm!("ecall",
-            in("a7") EXTENSION_ID,
-            in("a6") 0x00,
+            inout("a7") EXTENSION_ID => _,
+            inout("a6") 0x00 => _,
 
             inout("a0") type_ => err_code,
-            in("a1") reason,
+            inout("a1") reason => _,
         );
     }
 

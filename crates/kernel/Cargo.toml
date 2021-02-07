@@ -11,6 +11,7 @@ riscv = { path = "../riscv" }
 devicetree = { path = "../devicetree" }
 rumio = { path = "../../../rumio", version = "0.2" }
 owo-colors = "1.3"
+displaydoc-lite = "0.1"
 
 [features]
 default = ["virt"]

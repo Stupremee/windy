@@ -1,6 +1,7 @@
 //! Driver for the `ns16550a` UART chip.
 
 use self::registers::*;
+use core::fmt;
 
 mod registers {
     use rumio::{define_mmio_register, define_mmio_struct, mmio::Lit};
@@ -151,5 +152,16 @@ impl Device {
 
     fn data_ready(&self) -> bool {
         self.regs.LSR().read(DATA_READY::FIELD) != 0
+    }
+}
+
+impl fmt::Write for Device {
+    fn write_str(&mut self, s: &str) -> fmt::Result {
+        for x in s.bytes() {
+            self.write(x);
+        }
+        while !self.transmitter_empty() {}
+
+        Ok(())
     }
 }
