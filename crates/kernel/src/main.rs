@@ -59,7 +59,9 @@ fn windy_main(_hart_id: usize, fdt: *const u8) -> Result<(), FatalError> {
         info!("{} Uart console", "Initialized".green());
     }
 
-    mem::init(&tree).map_err(FatalError::Memory)?;
+    unsafe {
+        mem::init(&tree).map_err(FatalError::Memory)?;
+    }
 
     info!("{}", mem::alloc::allocator().stats());
     let _v = alloc::vec![0u8; 64 * unit::MIB];

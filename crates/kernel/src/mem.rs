@@ -24,7 +24,7 @@ displaydoc_lite::displaydoc! {
 }
 
 /// Initialize the global memory allocator.
-pub fn init(tree: &DeviceTree<'_>) -> Result<(), Error> {
+pub unsafe fn init(tree: &DeviceTree<'_>) -> Result<(), Error> {
     let mut memory = RangeSet::new();
 
     tree.memory()
@@ -55,8 +55,9 @@ pub fn init(tree: &DeviceTree<'_>) -> Result<(), Error> {
 
             let start = NonNull::new(start as *mut _).ok_or(Error::NullRegion)?;
             let end = NonNull::new(end as *mut _).ok_or(Error::NullRegion)?;
-            let bytes =
-                unsafe { alloc::allocator().add_region(start, end) }.map_err(Error::Alloc)?;
+            let bytes = alloc::allocator()
+                .add_region(start, end)
+                .map_err(Error::Alloc)?;
 
             crate::debug!(
                 "Made {} available for allocation",

@@ -55,7 +55,6 @@ SECTIONS
      */
     . += 4096;
     PROVIDE(__trap_stack = .);
-    . = ALIGN(8);
   } >ram AT>ram :data
 
   .bss : {
@@ -64,8 +63,8 @@ SECTIONS
     *(.sbss.*)
     *(.bss)
     *(.bss.*)
-    PROVIDE(__bss_end = .);
     . = ALIGN(8);
+    PROVIDE(__bss_end = .);
   } >ram AT>ram :bss
 
   . += 0x80000;
