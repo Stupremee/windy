@@ -7,13 +7,15 @@ use core::{cmp, fmt, slice};
 /// The number of ranges inside a fixed-size [`RangeSet`].
 pub const RANGE_COUNT: usize = 32;
 
-/// Any error that can occurr while operating on a [`RangeSet`].
-#[derive(Clone, Debug)]
-pub enum Error {
-    /// The range was invalid, meaning that `start > end`.
-    InvalidRange,
-    /// A given index was out of bounds.
-    OutOfBounds,
+displaydoc_lite::displaydoc! {
+    /// Any error that can occurr while operating on a [`RangeSet`].
+    #[derive(Clone, Debug)]
+    pub enum Error {
+        /// the range was invalid, meaning that `start > end`.
+        InvalidRange,
+        /// a given index was out of bounds.
+        OutOfBounds,
+    }
 }
 
 /// An inclusive range that implements [`Copy`].

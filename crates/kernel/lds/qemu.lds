@@ -65,10 +65,13 @@ SECTIONS
     *(.bss)
     *(.bss.*)
     PROVIDE(__bss_end = .);
+    . = ALIGN(8);
   } >ram AT>ram :bss
 
-  PROVIDE(__stack_start = __bss_end);
-  PROVIDE(__stack_end = __stack_start + 0x80000);
+  . += 0x80000;
+  PROVIDE(__stack_end = .);
 
   PROVIDE(__kernel_end = ALIGN(0x1000));
+
+  /DISCARD/ : { *(.eh_frame_hdr .eh_frame) }
 }

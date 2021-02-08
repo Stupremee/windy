@@ -5,7 +5,7 @@
 use crate::drivers;
 use core::fmt::{self, Write};
 use devicetree::{node::ChosenNode, DeviceTree};
-use riscv::sync::Mutex;
+use riscv::sync::{Mutex, MutexGuard};
 
 pub static CONSOLE: Mutex<StaticConsoleDevice> = Mutex::new(StaticConsoleDevice(None));
 
@@ -79,6 +79,11 @@ pub fn init(tree: &DeviceTree<'_>) -> bool {
     } else {
         false
     }
+}
+
+/// Lock the console and return a guard that can write to the console.
+pub fn lock() -> MutexGuard<'static, StaticConsoleDevice> {
+    CONSOLE.lock()
 }
 
 #[macro_export]

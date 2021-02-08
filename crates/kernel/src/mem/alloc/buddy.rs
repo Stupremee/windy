@@ -23,6 +23,7 @@ pub fn size_for_order(order: usize) -> usize {
 ///
 /// This function may return an order that is larger than [`MAX_ORDER`].
 pub fn order_for_size(size: usize) -> usize {
+    let size = cmp::max(size, super::PAGE_SIZE);
     let size = size.next_power_of_two() / super::PAGE_SIZE;
     size.trailing_zeros() as usize
 }
@@ -87,6 +88,7 @@ impl BuddyAllocator {
 
         // update statistics
         self.stats.total += total;
+        self.stats.free += total;
         Ok(total)
     }
 
@@ -134,10 +136,6 @@ impl BuddyAllocator {
             return Err(Error::OrderTooLarge);
         }
 
-        // update statistics
-        self.stats.requested += size_for_order(order);
-        self.stats.allocated += size_for_order(order);
-
         // fast path: if there's a block with the given order,
         // return it
         if let Some(block) = self.orders[order].pop() {
@@ -145,6 +143,11 @@ impl BuddyAllocator {
             let ptr = unsafe {
                 NonNull::new_unchecked(ptr::slice_from_raw_parts_mut(block.as_ptr().cast(), len))
             };
+
+            // update statistics
+            self.stats.free -= size_for_order(order);
+            self.stats.allocated += size_for_order(order);
+
             return Ok(ptr);
         }
 
@@ -206,6 +209,11 @@ impl BuddyAllocator {
         // Inside the `self.orders` list are only `NonNull` pointers
         // because heap regions must always be non null.
         let ptr = unsafe { NonNull::new_unchecked(ptr::slice_from_raw_parts_mut(ptr, len)) };
+
+        // update statistics
+        self.stats.free -= size_for_order(order);
+        self.stats.allocated += size_for_order(order);
+
         Ok(ptr)
     }
 
@@ -257,6 +265,10 @@ impl BuddyAllocator {
                 break;
             }
         }
+
+        // update statistics
+        self.stats.free += size_for_order(order);
+        self.stats.allocated -= size_for_order(order);
     }
 
     /// Return a copy of the statistics for this allocator.
