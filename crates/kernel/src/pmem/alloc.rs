@@ -4,7 +4,7 @@ pub mod buddy;
 pub use buddy::BuddyAllocator;
 
 use crate::unit::{self, KIB};
-use core::{alloc::Layout, fmt, ptr::NonNull};
+use core::{fmt, ptr::NonNull};
 use displaydoc_lite::displaydoc;
 use riscv::sync::Mutex;
 
@@ -25,6 +25,11 @@ pub unsafe fn align_up(addr: usize, align: usize) -> usize {
     (addr + align - 1) & !(align - 1)
 }
 
+/// Return the previous power of two for the given number
+pub fn prev_power_of_two(num: usize) -> usize {
+    1 << (usize::BITS as usize - num.leading_zeros() as usize - 1)
+}
+
 displaydoc! {
     /// Any error that can happen while allocating or deallocating memory.
     #[derive(Debug)]
@@ -37,6 +42,8 @@ displaydoc! {
         OrderTooLarge,
         /// tried to allocate, but there was no free memory left.
         NoMemoryAvailable,
+        /// tried to allocate zero pages using `alloc_pages`
+        AllocateZeroPages,
     }
 }
 
@@ -78,8 +85,7 @@ impl fmt::Display for AllocStats {
     }
 }
 
-#[global_allocator]
-static ALLOCATOR: GlobalAllocator = GlobalAllocator(Mutex::new(BuddyAllocator::new()));
+static PHYS_MEM_ALLOCATOR: GlobalAllocator = GlobalAllocator(Mutex::new(BuddyAllocator::new()));
 
 /// The central allocator that is responsible for allocating physical memory.
 pub struct GlobalAllocator(Mutex<BuddyAllocator>);
@@ -90,61 +96,38 @@ impl GlobalAllocator {
         self.0.lock().add_region(start, end)
     }
 
-    /// Return the current statistics of this allocator.
+    /// Allocatge a single page of physmem.
+    pub fn alloc(&self) -> Result<NonNull<[u8]>, Error> {
+        // order 0 is exactly the page size
+        self.0.lock().allocate(0)
+    }
+
+    /// Allocatge multiple pages of physical memory.
+    pub fn alloc_pages(&self, count: usize) -> Result<NonNull<[u8]>, Error> {
+        if count == 0 {
+            return Err(Error::AllocateZeroPages);
+        }
+
+        // to allocate multiple pages of contigous memory, we
+        // allocate the previous power of two, because order `0`,
+        // is one page, order `1` two pages, and order `2` four pages.
+        //
+        // the minus `1` is required, because imagine `count` is two, the previous
+        // number of two, would be `2`, but that is not the smallest possible order
+        let count = core::cmp::max(1, count - 1);
+        self.0.lock().allocate(prev_power_of_two(count))
+    }
+
+    /// Return the statistics for this allocator.
     pub fn stats(&self) -> AllocStats {
         self.0.lock().stats()
     }
 }
 
-unsafe impl core::alloc::GlobalAlloc for GlobalAllocator {
-    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-        crate::debug!(
-            "Allocating block of memory with size {:#X} and alignment {:#X}",
-            layout.size(),
-            layout.align()
-        );
-
-        // buddy allocator always returns page-aligned pointers
-        if layout.align() > PAGE_SIZE {
-            crate::error!("Tried to allocate memory with alignmnet larger than 8");
-            return core::ptr::null_mut();
-        }
-
-        let order = buddy::order_for_size(layout.size());
-        match self.0.lock().allocate(order) {
-            Ok(ptr) => {
-                let ptr = ptr.as_mut_ptr();
-                assert_eq!(
-                    ptr.align_offset(layout.align()),
-                    0,
-                    "allocator returned unaligned pointer"
-                );
-                ptr
-            }
-            Err(err) => {
-                crate::warn!("Failed to allocate physical memory: {}", err);
-                core::ptr::null_mut()
-            }
-        }
-    }
-
-    unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
-        crate::debug!(
-            "Deallocating block at {:#X} of memory with size {:#X} and alignment {:#X}",
-            ptr as usize,
-            layout.size(),
-            layout.align()
-        );
-
-        let order = buddy::order_for_size(layout.size());
-        self.0.lock().deallocate(NonNull::new_unchecked(ptr), order);
-    }
-}
-
-/// Returns a reference to the global allocator.
-pub fn allocator() -> &'static GlobalAllocator {
-    &ALLOCATOR
-}
-
 unsafe impl Send for GlobalAllocator {}
 unsafe impl Sync for GlobalAllocator {}
+
+/// Return a reference to the global allocator for physical memory.
+pub(super) fn allocator() -> &'static GlobalAllocator {
+    &PHYS_MEM_ALLOCATOR
+}

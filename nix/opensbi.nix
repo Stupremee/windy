@@ -16,7 +16,7 @@ in stdenv.mkDerivation rec {
     owner = "riscv";
     repo = name;
     rev = "234ed8e427f4d92903123199f6590d144e0d9351";
-    sha256 = "sha256-uqljriqyM2ydl6RCJvies+QphLmK7ytF1JJz4U8FGBQ=";
+    sha256 = "sha256-W39R1RHsIM3yNwW/eukO+mPd9joPZLw+/XIJoH8agN8=";
   };
 
   PLATFORM = platform;

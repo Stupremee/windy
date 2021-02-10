@@ -1,3 +1,5 @@
+//! Interaction with physical memory.
+
 mod rangeset;
 pub use rangeset::{Error as RangeError, Range, RangeSet};
 
@@ -81,4 +83,44 @@ fn get_blocked_ranges() -> [Range; 2] {
         // the kernel itself
         Range::new(kernel_start as _, kernel_end as usize - 1),
     ]
+}
+
+/// Return the statistics for the physical memory allocator.
+pub fn alloc_stats() -> alloc::AllocStats {
+    alloc::allocator().stats()
+}
+
+/// Allocate a single page of physical memory.
+pub fn alloc() -> Result<NonNull<[u8]>, AllocError> {
+    alloc::allocator().alloc()
+}
+
+/// Allocate a multiple pages of physical memory, that are contigous.
+pub fn alloc_pages(count: usize) -> Result<NonNull<[u8]>, AllocError> {
+    alloc::allocator().alloc_pages(count)
+}
+
+/// Allocate a single page of physical memory, and initialize all bytes with zero.
+pub fn zalloc() -> Result<NonNull<[u8]>, AllocError> {
+    let ptr = alloc::allocator().alloc()?;
+
+    unsafe {
+        let count = ptr.as_ptr().len();
+        core::ptr::write_bytes(ptr.as_mut_ptr(), 0, count);
+    }
+
+    Ok(ptr)
+}
+
+/// Allocate a multiple pages of physical memory, that are contigous,
+/// and initialize all bytes with zero.
+pub fn zalloc_pages(count: usize) -> Result<NonNull<[u8]>, AllocError> {
+    let ptr = alloc::allocator().alloc_pages(count)?;
+
+    unsafe {
+        let count = ptr.as_ptr().len();
+        core::ptr::write_bytes(ptr.as_mut_ptr(), 0, count);
+    }
+
+    Ok(ptr)
 }

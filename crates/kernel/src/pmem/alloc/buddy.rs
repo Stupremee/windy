@@ -3,7 +3,7 @@
 //! to allocate objects, or directly by the kernel.
 
 use super::{align_up, AllocStats, Error, Result};
-use crate::mem::LinkedList;
+use crate::pmem::LinkedList;
 use core::{cmp, mem, ptr, ptr::NonNull};
 
 /// The maximum order for the buddy allocator (inclusive).
@@ -122,6 +122,11 @@ impl BuddyAllocator {
             }
         }
 
+        debug!(
+            "Adding region at {:p} with order {} to Buddy Allocator",
+            start as *mut u8, order
+        );
+
         // push the block to the list for the given order
         let ptr = NonNull::new_unchecked(start as *mut _);
         self.orders[order].push(ptr);
@@ -152,48 +157,48 @@ impl BuddyAllocator {
         }
 
         // slow path: find an order we can split into two buddies.
-        // find first list that is not empty
-        let split_idx = self
-            .orders
-            .iter()
-            .position(|list| !list.is_empty())
-            .ok_or(Error::NoMemoryAvailable)?;
+        for split_idx in 0..self.orders.len() {
+            // only split orders that are not empty
+            if self.orders[split_idx].is_empty() {
+                continue;
+            }
 
-        // now walk down the orders from top to bottom,
-        // so we can split multiple orders if necessary
-        for order_to_split in (order + 1..split_idx + 1).rev() {
-            // there _must_ be at least one block, because either this is the first,
-            // non-empty list or we have splitted two buddies from the previous order.
-            let block = self.orders[order_to_split].pop().unwrap();
+            // now walk down the orders from top to bottom,
+            // so we can split multiple orders if necessary
+            for order_to_split in (order + 1..split_idx + 1).rev() {
+                // there _must_ be at least one block, because either this is the first,
+                // non-empty list or we have splitted two buddies from the previous order.
+                let block = self.orders[order_to_split].pop().unwrap();
 
-            // target is the order where both buddies will end up in
-            let target_order = order_to_split - 1;
-            let target = &mut self.orders[target_order];
+                // target is the order where both buddies will end up in
+                let target_order = order_to_split - 1;
+                let target = &mut self.orders[target_order];
 
-            unsafe {
-                // if this is how the order before the split looked like:
-                //
-                // +-- this is were `block` starts
-                // v
-                // +--------------------------------+
-                // |        `order_to_split`        |
-                // +--------------------------------+
-                //
-                // so to get the buddy address we do the following:
-                //
-                // +-- this is were `block` starts, it's now the first buddy
-                // v
-                // +---------------------------------+
-                // |    buddy 1     |    buddy 2     |
-                // +---------------------------------+
-                //                  ^
-                //                  +--- `buddy_addr` is here, we calculate it by using the `block`
-                //                       address plus the size of the target order
-                let buddy_addr = (block.as_ptr() as usize) + size_for_order(target_order);
+                unsafe {
+                    // if this is how the order before the split looked like:
+                    //
+                    // +-- this is were `block` starts
+                    // v
+                    // +--------------------------------+
+                    // |        `order_to_split`        |
+                    // +--------------------------------+
+                    //
+                    // so to get the buddy address we do the following:
+                    //
+                    // +-- this is were `block` starts, it's now the first buddy
+                    // v
+                    // +---------------------------------+
+                    // |    buddy 1     |    buddy 2     |
+                    // +---------------------------------+
+                    //                  ^
+                    //                  +--- `buddy_addr` is here, we calculate it by using the `block`
+                    //                       address plus the size of the target order
+                    let buddy_addr = (block.as_ptr() as usize) + size_for_order(target_order);
 
-                // now insert both bodies into the target order
-                target.push(block);
-                target.push(NonNull::new_unchecked(buddy_addr as *mut _));
+                    // now insert both bodies into the target order
+                    target.push(block);
+                    target.push(NonNull::new_unchecked(buddy_addr as *mut _));
+                }
             }
         }
 

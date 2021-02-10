@@ -108,6 +108,28 @@ macro_rules! log {
     }};
 }
 
+/// Custom implementation of the `dbg` macro.
+#[macro_export]
+macro_rules! dbg {
+    () => {
+        $crate::debug!("[{}:{}]", ::core::file!(), ::core::line!());
+    };
+
+    ($val:expr $(,)?) => {
+        match $val {
+            tmp => {
+                $crate::debug!("[{}:{}] {} = {:#?}", ::core::file!(), ::core::line!(),
+                    ::core::stringify!($val), &tmp);
+                tmp
+            }
+        }
+    };
+
+    ($($val:expr),+ $(,)?) => {
+        ($($crate::dbg!($val)),+,)
+    };
+}
+
 struct LogWriter<'fmt, L, G> {
     prefix: bool,
     time: Duration,
