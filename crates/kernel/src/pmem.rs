@@ -95,6 +95,11 @@ pub fn alloc() -> Result<NonNull<[u8]>, AllocError> {
     alloc::allocator().alloc()
 }
 
+/// Deallocate the given page.
+pub unsafe fn dealloc(ptr: NonNull<u8>, order: usize) {
+    alloc::allocator().dealloc(ptr, order)
+}
+
 /// Allocate a multiple pages of physical memory, that are contigous.
 pub fn alloc_pages(count: usize) -> Result<NonNull<[u8]>, AllocError> {
     alloc::allocator().alloc_pages(count)

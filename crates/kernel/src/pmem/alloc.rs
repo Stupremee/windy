@@ -25,11 +25,6 @@ pub unsafe fn align_up(addr: usize, align: usize) -> usize {
     (addr + align - 1) & !(align - 1)
 }
 
-/// Return the previous power of two for the given number
-pub fn prev_power_of_two(num: usize) -> usize {
-    1 << (usize::BITS as usize - num.leading_zeros() as usize - 1)
-}
-
 displaydoc! {
     /// Any error that can happen while allocating or deallocating memory.
     #[derive(Debug)]
@@ -102,20 +97,22 @@ impl GlobalAllocator {
         self.0.lock().allocate(0)
     }
 
+    /// Deallocate the given page, with the given order.
+    pub unsafe fn dealloc(&self, ptr: NonNull<u8>, order: usize) {
+        self.0.lock().deallocate(ptr, order)
+    }
+
     /// Allocatge multiple pages of physical memory.
     pub fn alloc_pages(&self, count: usize) -> Result<NonNull<[u8]>, Error> {
         if count == 0 {
             return Err(Error::AllocateZeroPages);
         }
 
-        // to allocate multiple pages of contigous memory, we
-        // allocate the previous power of two, because order `0`,
-        // is one page, order `1` two pages, and order `2` four pages.
-        //
-        // the minus `1` is required, because imagine `count` is two, the previous
-        // number of two, would be `2`, but that is not the smallest possible order
-        let count = core::cmp::max(1, count - 1);
-        self.0.lock().allocate(prev_power_of_two(count))
+        // to get the order required to fix `count` pages,
+        // we calculate the required size to fit `count` pages,
+        // and then get the order for this size
+        let total = count * PAGE_SIZE;
+        self.0.lock().allocate(buddy::order_for_size(total))
     }
 
     /// Return the statistics for this allocator.

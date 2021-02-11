@@ -8,6 +8,9 @@ pub struct LinkedList {
 }
 
 impl LinkedList {
+    /// Empty linked list.
+    pub const EMPTY: LinkedList = LinkedList::new();
+
     /// Creates a new, empty linked list.
     pub const fn new() -> Self {
         Self { head: None }

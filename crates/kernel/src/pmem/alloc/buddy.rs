@@ -12,8 +12,6 @@ pub const MAX_ORDER: usize = 14;
 /// The size of the orders array inside the buddy allocator.
 pub const ORDER_COUNT: usize = MAX_ORDER + 1;
 
-const EMPTY_ORDERS: [LinkedList; ORDER_COUNT] = [LinkedList::new(); ORDER_COUNT];
-
 /// Calculates the size in bytes for the given order.
 pub fn size_for_order(order: usize) -> usize {
     (1 << order) * super::PAGE_SIZE
@@ -39,7 +37,7 @@ impl BuddyAllocator {
     /// Create a empty and uninitialized buddy allocator.
     pub const fn new() -> Self {
         Self {
-            orders: EMPTY_ORDERS,
+            orders: [LinkedList::EMPTY; ORDER_COUNT],
             stats: AllocStats::with_name("Buddy Allocator"),
         }
     }

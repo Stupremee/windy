@@ -8,11 +8,10 @@
     naked_functions,
     exclusive_range_pattern,
     panic_info_message,
-    array_value_iter,
-    const_in_array_repeat_expressions,
     slice_ptr_get,
     slice_ptr_len,
-    int_bits_const
+    int_bits_const,
+    array_map
 )]
 
 #[cfg(not(target_pointer_width = "64"))]
@@ -72,12 +71,15 @@ fn windy_main(_hart_id: usize, fdt: *const u8) -> Result<(), FatalError> {
 
     let start = arch::time();
 
-    const COUNT: usize = 15_000;
-    const PAGE_COUNT: usize = 2;
+    const COUNT: usize = 1;
+    const PAGE_COUNT: usize = 1;
 
     for _ in 0..COUNT {
         let ptr = pmem::alloc_pages(PAGE_COUNT).unwrap();
-        assert!(ptr.len() >= 4096 * PAGE_COUNT)
+        let order = pmem::alloc::buddy::order_for_size(ptr.len());
+
+        assert!(ptr.len() >= 4096 * PAGE_COUNT);
+        unsafe { pmem::dealloc(ptr.as_non_null_ptr(), order) };
     }
 
     let end = arch::time();
@@ -85,7 +87,7 @@ fn windy_main(_hart_id: usize, fdt: *const u8) -> Result<(), FatalError> {
 
     let bytes = 4096 * PAGE_COUNT * COUNT;
     debug!(
-        "allocated {} pages {} times ({}) in {:?}",
+        "allocated and freed {} pages {} times ({}) in {:?}",
         PAGE_COUNT,
         COUNT,
         unit::bytes(bytes),
