@@ -117,7 +117,7 @@ impl<'list> Iterator for IterMut<'list> {
 
         // move one element forward
         self.head = self.prev;
-        self.head = unsafe { Some(NonNull::new_unchecked(*head as *mut _)) };
+        self.head = NonNull::new(unsafe { *head as *mut _ });
 
         // return the new node
         Some(node)

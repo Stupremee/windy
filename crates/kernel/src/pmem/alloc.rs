@@ -39,6 +39,10 @@ displaydoc! {
         NoMemoryAvailable,
         /// tried to allocate zero pages using `alloc_pages`
         AllocateZeroPages,
+        /// Tried to create a `NonNull` from a null pointer.
+        ///
+        /// Mostly just a safety mechanism to avoid UB.
+        NullPointer,
     }
 }
 
@@ -99,7 +103,10 @@ impl GlobalAllocator {
 
     /// Deallocate the given page, with the given order.
     pub unsafe fn dealloc(&self, ptr: NonNull<u8>, order: usize) {
-        self.0.lock().deallocate(ptr, order)
+        match self.0.lock().deallocate(ptr, order) {
+            Ok(()) => {}
+            Err(err) => warn!("Failed to deallocate page: {}", err),
+        }
     }
 
     /// Allocatge multiple pages of physical memory.

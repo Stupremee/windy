@@ -61,8 +61,8 @@ pub unsafe fn init(tree: &DeviceTree<'_>) -> Result<(), Error> {
                 .add_region(start, end)
                 .map_err(Error::Alloc)?;
 
-            crate::debug!(
-                "Made {} available for allocation",
+            crate::info!(
+                "Made {} available for physical memory allocation",
                 crate::unit::bytes(bytes)
             );
 

@@ -71,8 +71,8 @@ fn windy_main(_hart_id: usize, fdt: *const u8) -> Result<(), FatalError> {
 
     let start = arch::time();
 
-    const COUNT: usize = 1;
-    const PAGE_COUNT: usize = 1;
+    const COUNT: usize = 1_000_000_00;
+    const PAGE_COUNT: usize = 4;
 
     for _ in 0..COUNT {
         let ptr = pmem::alloc_pages(PAGE_COUNT).unwrap();

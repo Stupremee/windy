@@ -3,6 +3,3 @@ members = [
     "crates/*",
 ]
 default-members = ["crates/kernel"]
-
-[profile.release]
-debug = true

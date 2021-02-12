@@ -77,7 +77,7 @@ impl BuddyAllocator {
         // loop until there's not enough memory left to allocate a single page
         let mut total = 0;
         while (end as usize).saturating_sub(start as usize) >= super::PAGE_SIZE {
-            let order = self.add_single_region(start, end);
+            let order = self.add_single_region(start, end)?;
             let size = size_for_order(order);
 
             start = start.add(size);
@@ -93,7 +93,7 @@ impl BuddyAllocator {
     /// Tries to add a single order to this allocator from the given range.
     ///
     /// Returns the order which was inserted into this allocator.
-    unsafe fn add_single_region(&mut self, start: *mut u8, end: *mut u8) -> usize {
+    unsafe fn add_single_region(&mut self, start: *mut u8, end: *mut u8) -> Result<usize> {
         // TODO: Optimize so it doesn't need a loop
         let start_addr = start as usize;
 
@@ -126,9 +126,9 @@ impl BuddyAllocator {
         );
 
         // push the block to the list for the given order
-        let ptr = NonNull::new_unchecked(start as *mut _);
+        let ptr = NonNull::new(start as *mut _).ok_or(Error::NullPointer)?;
         self.orders[order].push(ptr);
-        order
+        Ok(order)
     }
 
     /// Allocates a chunk of memory that has the given order.
@@ -143,13 +143,13 @@ impl BuddyAllocator {
         // return it
         if let Some(block) = self.orders[order].pop() {
             let len = size_for_order(order);
-            let ptr = unsafe {
-                NonNull::new_unchecked(ptr::slice_from_raw_parts_mut(block.as_ptr().cast(), len))
-            };
+            let ptr = NonNull::new(ptr::slice_from_raw_parts_mut(block.as_ptr().cast(), len))
+                .ok_or(Error::NullPointer)?;
 
             // update statistics
-            self.stats.free -= size_for_order(order);
-            self.stats.allocated += size_for_order(order);
+            let size = size_for_order(order);
+            self.stats.free = self.stats.free.saturating_sub(size);
+            self.stats.allocated = self.stats.allocated.saturating_add(size);
 
             return Ok(ptr);
         }
@@ -166,7 +166,9 @@ impl BuddyAllocator {
             for order_to_split in (order + 1..split_idx + 1).rev() {
                 // there _must_ be at least one block, because either this is the first,
                 // non-empty list or we have splitted two buddies from the previous order.
-                let block = self.orders[order_to_split].pop().unwrap();
+                let block = self.orders[order_to_split]
+                    .pop()
+                    .ok_or(Error::NullPointer)?;
 
                 // target is the order where both buddies will end up in
                 let target_order = order_to_split - 1;
@@ -195,7 +197,7 @@ impl BuddyAllocator {
 
                     // now insert both bodies into the target order
                     target.push(block);
-                    target.push(NonNull::new_unchecked(buddy_addr as *mut _));
+                    target.push(NonNull::new(buddy_addr as *mut _).ok_or(Error::NullPointer)?);
                 }
             }
         }
@@ -211,11 +213,13 @@ impl BuddyAllocator {
         // SAFETY
         // Inside the `self.orders` list are only `NonNull` pointers
         // because heap regions must always be non null.
-        let ptr = unsafe { NonNull::new_unchecked(ptr::slice_from_raw_parts_mut(ptr, len)) };
+        let ptr =
+            NonNull::new(ptr::slice_from_raw_parts_mut(ptr, len)).ok_or(Error::NullPointer)?;
 
         // update statistics
-        self.stats.free -= size_for_order(order);
-        self.stats.allocated += size_for_order(order);
+        let size = size_for_order(order);
+        self.stats.free = self.stats.free.saturating_sub(size);
+        self.stats.allocated = self.stats.allocated.saturating_add(size);
 
         Ok(ptr)
     }
@@ -226,7 +230,7 @@ impl BuddyAllocator {
     ///
     /// The poitner must be allocated by `self` using the [`Self::allocate`] method
     /// with the same order as given here.
-    pub unsafe fn deallocate(&mut self, ptr: NonNull<u8>, mut order: usize) {
+    pub unsafe fn deallocate(&mut self, ptr: NonNull<u8>, mut order: usize) -> Result<()> {
         // insert the raw block into our free list
         self.orders[order].push(ptr.cast());
 
@@ -256,7 +260,7 @@ impl BuddyAllocator {
                 //
                 // SAFETY
                 // There can never be one buddy that is at address 0.
-                let merged_buddy = NonNull::new_unchecked(ptr as *mut _);
+                let merged_buddy = NonNull::new(ptr as *mut _).ok_or(Error::NullPointer)?;
                 self.orders[target_order].push(merged_buddy);
 
                 // update `ptr` to point to the new block,
@@ -270,8 +274,11 @@ impl BuddyAllocator {
         }
 
         // update statistics
-        self.stats.free += size_for_order(order);
-        self.stats.allocated -= size_for_order(order);
+        let size = size_for_order(order);
+        self.stats.free = self.stats.free.saturating_add(size);
+        self.stats.allocated = self.stats.allocated.saturating_sub(size);
+
+        Ok(())
     }
 
     /// Return a copy of the statistics for this allocator.
