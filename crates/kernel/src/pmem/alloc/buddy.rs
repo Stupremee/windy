@@ -7,7 +7,9 @@ use crate::pmem::LinkedList;
 use core::{cmp, mem, ptr, ptr::NonNull};
 
 /// The maximum order for the buddy allocator (inclusive).
-pub const MAX_ORDER: usize = 14;
+///
+/// Linux uses `11` as the max order, so just use it too.
+pub const MAX_ORDER: usize = 11;
 
 /// The size of the orders array inside the buddy allocator.
 pub const ORDER_COUNT: usize = MAX_ORDER + 1;
@@ -24,6 +26,12 @@ pub fn order_for_size(size: usize) -> usize {
     let size = cmp::max(size, super::PAGE_SIZE);
     let size = size.next_power_of_two() / super::PAGE_SIZE;
     size.trailing_zeros() as usize
+}
+
+/// Calculate the address of the other buddy for the given block.
+fn buddy_of(block: NonNull<usize>, order: usize) -> Result<NonNull<usize>> {
+    let buddy = block.as_ptr() as usize ^ size_for_order(order);
+    NonNull::new(buddy as *mut _).ok_or(Error::NullPointer)
 }
 
 /// The central structure that is responsible for allocating
@@ -135,6 +143,7 @@ impl BuddyAllocator {
     ///
     /// The size for returned chunk can be calculated using [`size_for_order`].
     pub fn allocate(&mut self, order: usize) -> Result<NonNull<[u8]>> {
+        // check if we exceeded the maximum order
         if order > MAX_ORDER {
             return Err(Error::OrderTooLarge);
         }
@@ -148,80 +157,33 @@ impl BuddyAllocator {
 
             // update statistics
             let size = size_for_order(order);
-            self.stats.free = self.stats.free.saturating_sub(size);
-            self.stats.allocated = self.stats.allocated.saturating_add(size);
+            self.alloc_stats(size);
 
             return Ok(ptr);
         }
 
-        // slow path: find an order we can split into two buddies.
-        for split_idx in 0..self.orders.len() {
-            // only split orders that are not empty
-            if self.orders[split_idx].is_empty() {
-                continue;
-            }
+        // slow path: walk up the order list and split required buddies.
+        //
+        // we map the error to no memory available, because if there's no block
+        // in the order above, we don't have any memory available
+        let block = self
+            .allocate(order + 1)
+            .map_err(|_| Error::NoMemoryAvailable)?;
 
-            // now walk down the orders from top to bottom,
-            // so we can split multiple orders if necessary
-            for order_to_split in (order + 1..split_idx + 1).rev() {
-                // there _must_ be at least one block, because either this is the first,
-                // non-empty list or we have splitted two buddies from the previous order.
-                let block = self.orders[order_to_split]
-                    .pop()
-                    .ok_or(Error::NullPointer)?;
+        // this is one of the big advanteges of the buddy system.
+        //
+        // the addresses of two buddies only differe in one bit, thus we
+        // can easily get the address of a buddy, if we have the other buddy.
+        let buddy = buddy_of(block.as_non_null_ptr().cast(), order)?;
 
-                // target is the order where both buddies will end up in
-                let target_order = order_to_split - 1;
-                let target = &mut self.orders[target_order];
-
-                unsafe {
-                    // if this is how the order before the split looked like:
-                    //
-                    // +-- this is were `block` starts
-                    // v
-                    // +--------------------------------+
-                    // |        `order_to_split`        |
-                    // +--------------------------------+
-                    //
-                    // so to get the buddy address we do the following:
-                    //
-                    // +-- this is were `block` starts, it's now the first buddy
-                    // v
-                    // +---------------------------------+
-                    // |    buddy 1     |    buddy 2     |
-                    // +---------------------------------+
-                    //                  ^
-                    //                  +--- `buddy_addr` is here, we calculate it by using the `block`
-                    //                       address plus the size of the target order
-                    let buddy_addr = (block.as_ptr() as usize) + size_for_order(target_order);
-
-                    // now insert both bodies into the target order
-                    target.push(block);
-                    target.push(NonNull::new(buddy_addr as *mut _).ok_or(Error::NullPointer)?);
-                }
-            }
-        }
-
-        // now pop one of the buddies that was created and cast it to a slice.
-        let ptr = self.orders[order]
-            .pop()
-            .ok_or(Error::NoMemoryAvailable)?
-            .as_ptr()
-            .cast::<u8>();
-        let len = size_for_order(order);
-
-        // SAFETY
-        // Inside the `self.orders` list are only `NonNull` pointers
-        // because heap regions must always be non null.
-        let ptr =
-            NonNull::new(ptr::slice_from_raw_parts_mut(ptr, len)).ok_or(Error::NullPointer)?;
+        // push the second buddy to the free list
+        unsafe { self.orders[order].push(buddy) };
 
         // update statistics
         let size = size_for_order(order);
-        self.stats.free = self.stats.free.saturating_sub(size);
-        self.stats.allocated = self.stats.allocated.saturating_add(size);
+        self.alloc_stats(size);
 
-        Ok(ptr)
+        Ok(block)
     }
 
     /// Deallocates a block of memory, that was allocated using the given order.
@@ -230,53 +192,30 @@ impl BuddyAllocator {
     ///
     /// The poitner must be allocated by `self` using the [`Self::allocate`] method
     /// with the same order as given here.
-    pub unsafe fn deallocate(&mut self, ptr: NonNull<u8>, mut order: usize) -> Result<()> {
-        // insert the raw block into our free list
-        self.orders[order].push(ptr.cast());
+    pub unsafe fn deallocate(&mut self, block: NonNull<u8>, order: usize) -> Result<()> {
+        // get the buddy of the block to deallocate
+        let buddy_addr = buddy_of(block.cast(), order)?;
 
-        // the address of the block we are currently
-        // trying to merge.
-        let mut ptr = ptr.as_ptr() as usize;
+        // check if the buddy is free
+        if let Some(buddy) = self.orders[order]
+            .iter_mut()
+            .find(|block| block.as_ptr() == Some(buddy_addr))
+        {
+            // if the buddy is free, remove the buddy from the free list...
+            buddy.pop();
 
-        // try to merge two buddies if both of them are free.
-        // loop at the next order after the given one, until the maximum
-        // order, so that we are able to merge multiple times if possible
-        for target_order in order + 1..self.orders.len() {
-            // this is a trick to find the address for the other buddy
-            // if you have the address of one of them
-            let buddy_addr = ptr ^ size_for_order(order);
+            // ...and then go to the next level and merge both buddies
+            let new_block = cmp::min(buddy_addr.cast(), block);
+            self.deallocate(new_block, order + 1)?;
+        } else {
+            // if the buddy is not free, just insert the block to deallocate
+            // into the free-list
+            self.orders[order].push(block.cast());
 
-            // check if the buddy is free by searching inside the list
-            // of the current order
-            if let Some(buddy) = self.orders[order].iter_mut().find(|buddy| {
-                buddy
-                    .as_ptr()
-                    .map_or(false, |addr| addr.as_ptr() as usize == buddy_addr)
-            }) {
-                // if we found a buddy, remove it
-                buddy.pop();
-
-                // push the merged buddy into the target order (the next order)
-                //
-                // SAFETY
-                // There can never be one buddy that is at address 0.
-                let merged_buddy = NonNull::new(ptr as *mut _).ok_or(Error::NullPointer)?;
-                self.orders[target_order].push(merged_buddy);
-
-                // update `ptr` to point to the new block,
-                // which is the smaller address of both buddies
-                ptr = cmp::min(buddy_addr, ptr);
-                // go to the next order so we can try to merge another buddies
-                order += 1;
-            } else {
-                break;
-            }
+            // update statistics
+            let size = size_for_order(order);
+            self.dealloc_stats(size);
         }
-
-        // update statistics
-        let size = size_for_order(order);
-        self.stats.free = self.stats.free.saturating_add(size);
-        self.stats.allocated = self.stats.allocated.saturating_sub(size);
 
         Ok(())
     }
@@ -284,5 +223,15 @@ impl BuddyAllocator {
     /// Return a copy of the statistics for this allocator.
     pub fn stats(&self) -> AllocStats {
         self.stats.clone()
+    }
+
+    fn alloc_stats(&mut self, size: usize) {
+        self.stats.free = self.stats.free.saturating_sub(size);
+        self.stats.allocated = self.stats.allocated.saturating_add(size);
+    }
+
+    fn dealloc_stats(&mut self, size: usize) {
+        self.stats.free = self.stats.free.saturating_add(size);
+        self.stats.allocated = self.stats.allocated.saturating_sub(size);
     }
 }

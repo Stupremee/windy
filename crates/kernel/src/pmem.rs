@@ -3,8 +3,8 @@
 mod rangeset;
 pub use rangeset::{Error as RangeError, Range, RangeSet};
 
-mod linked_list;
-pub use linked_list::{IterMut, LinkedList, ListNode};
+pub mod linked_list;
+pub use linked_list::LinkedList;
 
 pub mod alloc;
 pub use self::alloc::Error as AllocError;
