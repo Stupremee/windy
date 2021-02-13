@@ -2,7 +2,9 @@
 
 pub mod sv39;
 
+use crate::unit;
 use core::ops;
+use displaydoc_lite::displaydoc;
 
 macro_rules! addr_type {
     ($(#[$attr:meta])* $pub:vis struct $name:ident;) => {
@@ -10,6 +12,19 @@ macro_rules! addr_type {
         #[derive(Debug, Clone, Copy, PartialEq, Eq)]
         #[repr(transparent)]
         $pub struct $name(usize);
+
+        impl $name {
+            /// Interpret this physical address as a pointer to a `T`.
+            pub fn as_ptr<T>(self) -> *mut T {
+                self.0 as *mut T
+            }
+
+            /// Calculates the wrapping offset from this physical address.
+            pub fn offset(self, off: usize) -> Self {
+                $name::from(self.0.wrapping_add(off))
+            }
+        }
+
 
         impl From<usize> for $name {
             fn from(addr: usize) -> Self {
@@ -25,6 +40,17 @@ macro_rules! addr_type {
     };
 }
 
+displaydoc! {
+    /// Errors that are related to paging.
+    #[derive(Debug)]
+    pub enum Error {
+        /// Tried to map an address that is not aligned to the page size.
+        UnalignedAddress,
+        /// Failed to allocate a new page.
+        Alloc(crate::pmem::AllocError),
+    }
+}
+
 addr_type! {
     /// A Virtual address
     pub struct VirtAddr;
@@ -36,11 +62,23 @@ addr_type! {
 }
 
 /// Represents the different kinds of pages that can be mapped.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum PageSize {
     Kilopage,
     Megapage,
     Gigapage,
+}
+
+impl PageSize {
+    pub fn is_aligned(self, addr: usize) -> bool {
+        let align = match self {
+            PageSize::Kilopage => 4 * unit::KIB,
+            PageSize::Megapage => 2 * unit::MIB,
+            PageSize::Gigapage => 1 * unit::GIB,
+        };
+
+        addr % align == 0
+    }
 }
 
 /// Represents the permissions of a PTE.
@@ -55,17 +93,29 @@ impl Perm {
 
     /// Check if this permission is readable.
     pub fn read(self) -> bool {
-        self | Perm::READ != Perm::from(0)
+        self | Perm::READ != Perm::from(0u8)
     }
 
     /// Check if this permission is writable.
     pub fn write(self) -> bool {
-        self | Perm::WRITE != Perm::from(0)
+        self | Perm::WRITE != Perm::from(0u8)
     }
 
     /// Check if this permission is executable.
     pub fn exec(self) -> bool {
-        self | Perm::WRITE != Perm::from(0)
+        self | Perm::WRITE != Perm::from(0u8)
+    }
+}
+
+impl From<usize> for Perm {
+    fn from(x: usize) -> Perm {
+        Perm((x & 0b111) as u8)
+    }
+}
+
+impl From<Perm> for usize {
+    fn from(x: Perm) -> usize {
+        x.0.into()
     }
 }
 

@@ -67,35 +67,6 @@ fn windy_main(_hart_id: usize, fdt: *const u8) -> Result<(), FatalError> {
         pmem::init(&tree).map_err(FatalError::Memory)?;
     }
 
-    debug!("{}", pmem::alloc_stats());
-
-    let start = arch::time();
-
-    const COUNT: usize = 1_000_000_00;
-    const PAGE_COUNT: usize = 4;
-
-    for _ in 0..COUNT {
-        let ptr = pmem::alloc_pages(PAGE_COUNT).unwrap();
-        let order = pmem::alloc::buddy::order_for_size(ptr.len());
-
-        assert!(ptr.len() >= 4096 * PAGE_COUNT);
-        unsafe { pmem::dealloc(ptr.as_non_null_ptr(), order) };
-    }
-
-    let end = arch::time();
-    let time = end - start;
-
-    let bytes = 4096 * PAGE_COUNT * COUNT;
-    debug!(
-        "allocated and freed {} pages {} times ({}) in {:?}",
-        PAGE_COUNT,
-        COUNT,
-        unit::bytes(bytes),
-        time,
-    );
-
-    debug!("{}", pmem::alloc_stats());
-
     Ok(())
 }
 

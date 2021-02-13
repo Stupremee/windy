@@ -101,9 +101,23 @@ impl GlobalAllocator {
         self.0.lock().allocate(0)
     }
 
-    /// Deallocate the given page, with the given order.
-    pub unsafe fn dealloc(&self, ptr: NonNull<u8>, order: usize) {
-        match self.0.lock().deallocate(ptr, order) {
+    /// Deallocate the given page.
+    pub unsafe fn dealloc(&self, ptr: NonNull<u8>) {
+        match self.0.lock().deallocate(ptr, 0) {
+            Ok(()) => {}
+            Err(err) => warn!("Failed to deallocate page: {}", err),
+        }
+    }
+
+    /// Deallocate `count` number of pages.
+    pub unsafe fn dealloc_pages(&self, ptr: NonNull<u8>, count: usize) {
+        if count == 0 {
+            warn!("Tried to deallocate `0` pages");
+            return;
+        }
+        let total = count * PAGE_SIZE;
+
+        match self.0.lock().deallocate(ptr, buddy::order_for_size(total)) {
             Ok(()) => {}
             Err(err) => warn!("Failed to deallocate page: {}", err),
         }
