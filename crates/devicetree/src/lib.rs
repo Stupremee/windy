@@ -8,7 +8,7 @@ use self::{
     node::Node,
     parse::{Token, TokenIter},
 };
-use core::{cell::Cell, convert::TryInto, marker::PhantomData};
+use core::{cell::Cell, convert::TryInto, marker::PhantomData, ops::Not};
 
 /// The magic number, which is the first 4 bytes in every device tree.
 const MAGIC: u32 = 0xD00DFEED;
@@ -127,6 +127,77 @@ impl<'tree> DeviceTree<'tree> {
         let buf = &self.buf[start..start + size];
 
         TokenIter::new(buf)
+    }
+
+    /// Find all nodes that match the given path.
+    pub fn find_nodes<'path: 'tree>(
+        &'tree self,
+        path: &'path str,
+    ) -> impl Iterator<Item = Node<'tree>> {
+        let mut path = path.split_terminator('/').peekable();
+        // nesting_level is the level of the current node
+        let mut nesting_level = 0u8;
+        // looking_level is the level in which we are currently searching
+        let mut looking_level = 1u8;
+        let mut iter = self.tokens();
+
+        // the last part of the given path
+        let mut last_part = None;
+
+        core::iter::from_fn(move || {
+            loop {
+                let token = iter.next()?;
+                match token {
+                    Token::BeginNode(node) => {
+                        let level = nesting_level;
+                        nesting_level += 1;
+
+                        // we only want to check the nodes that are at the leve we are looking for
+                        if nesting_level != looking_level {
+                            continue;
+                        }
+
+                        // get the next path
+                        let next_part = path.peek().map(|&x| x).or(last_part)?;
+
+                        // otherwise we compare the user provided path
+                        // with the current node name
+                        if !node.name.starts_with(next_part) {
+                            // FIXME: this is a very bad way of checking if two
+                            // node names are equal
+                            continue;
+                        }
+
+                        // if this was the llast part of the part,
+                        // we have found our target node
+                        path.next();
+                        if path.peek().is_none() {
+                            last_part = Some(next_part);
+                            return Some(Node {
+                                tree: self,
+                                name: node.name,
+                                level,
+                                children: iter.clone(),
+                            });
+                        }
+
+                        // if the names match, continue to the next level
+                        looking_level += 1;
+                    }
+                    Token::EndNode => {
+                        nesting_level -= 1;
+
+                        // if the current nesting level is two lower than the looking one,
+                        // we haven't found any node
+                        if nesting_level < looking_level - 1 {
+                            return None;
+                        }
+                    }
+                    // we don't care about properties here
+                    Token::Property(_) => {}
+                }
+            }
+        })
     }
 
     /// Try to find a node at the given path
@@ -370,5 +441,7 @@ pub(crate) fn next_str_checked(bytes: &[u8]) -> Option<&str> {
     let nul_pos = memchr(0x00, bytes)?;
     let str_bytes = &bytes[..nul_pos];
 
-    core::str::from_utf8(str_bytes).ok()
+    core::str::from_utf8(str_bytes)
+        .ok()
+        .and_then(|s| s.is_empty().not().then(|| s))
 }

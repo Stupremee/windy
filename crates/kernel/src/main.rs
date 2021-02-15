@@ -52,7 +52,11 @@ fn kinit(hart_id: usize, tree: &DeviceTree<'_>) -> ! {
 }
 
 /// The "safe" entry point for the kernel.
-fn windy_main(_hart_id: usize, _tree: &DeviceTree<'_>) -> Result<(), Error> {
+fn windy_main(_hart_id: usize, tree: &DeviceTree<'_>) -> Result<(), Error> {
+    for node in tree.find_nodes("/virtio_mmio") {
+        info!("Tree node: {}", node.name());
+    }
+
     Ok(())
 }
 
