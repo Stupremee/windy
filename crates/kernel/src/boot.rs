@@ -1,3 +1,22 @@
+use crate::{console, pmem};
+use devicetree::DeviceTree;
+
+/// Function that is run before `kinit` which is meant to setup paging and stuff
+/// and then jumps into `kinit`.
+#[no_mangle]
+unsafe extern "C" fn _before_main(hart: usize, fdt: *const u8) -> ! {
+    let tree = DeviceTree::from_ptr(fdt);
+    let tree = tree.expect("failed to initialize devicetree");
+
+    if console::init(&tree) {
+        info!("{} Uart console", "Initialized".green());
+    }
+
+    pmem::init(&tree).expect("failed to initialize the physical memory allocator");
+
+    crate::kinit(hart, &tree)
+}
+
 /// The entrypoint for the whole kernel.
 ///
 /// `a0` = hart id
@@ -19,6 +38,7 @@ pub unsafe extern "C" fn _boot() -> ! {
         // Disable interrupts
         // ---------------------------------
         "csrw sie, zero",
+        "csrci sstatus, 2",
         // ---------------------------------
         // Set `bss` to zero
         // ---------------------------------
@@ -36,7 +56,7 @@ pub unsafe extern "C" fn _boot() -> ! {
         // ---------------------------------
         // Jump into rust code
         // ---------------------------------
-        "call kinit",
+        "j _before_main",
         options(noreturn)
     )
 }

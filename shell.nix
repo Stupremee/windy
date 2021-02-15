@@ -30,5 +30,7 @@ in pkgs.mkShell {
     dtc
     cargo-expand
     runQemu
+
+    genext2fs
   ];
 }

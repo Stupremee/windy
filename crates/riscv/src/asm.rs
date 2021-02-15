@@ -29,3 +29,16 @@ pub fn rdtime() -> usize {
     unsafe { asm!("rdtime {}", out(reg) x) };
     x
 }
+
+/// Execute a `sfence.vma` instruction for the given address and asid.
+#[inline]
+pub fn sfence(addr: impl Into<Option<usize>>, asid: impl Into<Option<u16>>) {
+    unsafe {
+        match (addr.into(), asid.into()) {
+            (Some(addr), Some(asid)) => asm!("sfence.vma {}, {}", in(reg) addr, in(reg) asid),
+            (Some(addr), None) => asm!("sfence.vma {}, x0", in(reg) addr),
+            (None, Some(asid)) => asm!("sfence.vma x0, {}", in(reg) asid),
+            (None, None) => asm!("sfence.vma x0, x0"),
+        }
+    }
+}

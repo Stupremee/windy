@@ -19,9 +19,6 @@ compile_error!("Windy can only run on 64 bit systems");
 #[cfg(not(target_has_atomic = "ptr"))]
 compile_error!("Windy can only run on systems that have atomic support");
 
-#[cfg(target_arch = "riscv")]
-compile_error!("foo");
-
 pub mod arch;
 #[macro_use]
 pub mod console;
@@ -40,8 +37,8 @@ use displaydoc_lite::displaydoc;
 
 /// The entry point for the booting hart.
 #[no_mangle]
-unsafe extern "C" fn kinit(hart_id: usize, fdt: *const u8) -> ! {
-    match windy_main(hart_id, fdt) {
+fn kinit(hart_id: usize, tree: &DeviceTree<'_>) -> ! {
+    match windy_main(hart_id, tree) {
         Ok(()) => arch::exit(0),
         Err(err) => {
             error!("Failed to initialize kernel: {}", err.red());
@@ -55,27 +52,12 @@ unsafe extern "C" fn kinit(hart_id: usize, fdt: *const u8) -> ! {
 }
 
 /// The "safe" entry point for the kernel.
-fn windy_main(_hart_id: usize, fdt: *const u8) -> Result<(), FatalError> {
-    let tree = unsafe { DeviceTree::from_ptr(fdt) };
-    let tree = tree.ok_or(FatalError::InvalidDeviceTree)?;
-
-    if console::init(&tree) {
-        info!("{} Uart console", "Initialized".green());
-    }
-
-    unsafe {
-        pmem::init(&tree).map_err(FatalError::Memory)?;
-    }
-
+fn windy_main(_hart_id: usize, _tree: &DeviceTree<'_>) -> Result<(), Error> {
     Ok(())
 }
 
 displaydoc! {
     /// Any error that will cause the kernel to exit.
-    pub enum FatalError {
-        /// The received device tree was invalid.
-        InvalidDeviceTree,
-        /// {_0}
-        Memory(pmem::Error),
+    pub enum Error {
     }
 }

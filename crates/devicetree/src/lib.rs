@@ -72,6 +72,11 @@ impl<'tree> DeviceTree<'tree> {
         })
     }
 
+    /// Return a raw pointer to the buffer of this device tree.
+    pub fn as_ptr(&self) -> *const u8 {
+        self.buf.as_ptr()
+    }
+
     /// Return an iterator over all elemens inside the memory reservations block
     /// of this device tree.
     ///
