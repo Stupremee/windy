@@ -27,6 +27,18 @@ macro_rules! addr_type {
             }
         }
 
+        impl<T> From<*const T> for $name {
+            fn from(x: *const T) -> Self {
+                Self::from(x as usize)
+            }
+        }
+
+        impl<T> From<*mut T> for $name {
+            fn from(x: *mut T) -> Self {
+                Self::from(x as usize)
+            }
+        }
+
         impl From<$name> for usize {
             fn from(x: $name) -> usize {
                 x.0
@@ -62,6 +74,17 @@ impl PageSize {
         };
 
         addr % align == 0
+    }
+
+    /// Return the number of bytes this page size covers.
+    ///
+    /// This will return the sizes for the Sv39 addressing mode.
+    pub fn size(self) -> usize {
+        match self {
+            PageSize::Kilopage => 4 * unit::KIB,
+            PageSize::Megapage => 2 * unit::MIB,
+            PageSize::Gigapage => 1 * unit::GIB,
+        }
     }
 }
 

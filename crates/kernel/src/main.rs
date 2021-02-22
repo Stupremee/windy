@@ -32,6 +32,9 @@ pub mod unit;
 mod boot;
 mod panic;
 
+mod static_cell;
+pub use static_cell::StaticCell;
+
 use devicetree::DeviceTree;
 use displaydoc_lite::displaydoc;
 

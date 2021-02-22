@@ -67,6 +67,7 @@ SECTIONS
     PROVIDE(__bss_end = .);
   } >ram AT>ram :bss
 
+  PROVIDE(__stack_start = .);
   . += 0x80000;
   PROVIDE(__stack_end = .);
 

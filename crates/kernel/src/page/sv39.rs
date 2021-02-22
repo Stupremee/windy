@@ -5,12 +5,19 @@ use crate::pmem;
 use core::ptr::NonNull;
 
 /// The central page table structure.
-#[repr(transparent)]
+#[repr(C, align(4096))]
 pub struct Table {
     entries: [Entry; 512],
 }
 
 impl Table {
+    /// Create a new, empty table.
+    pub const fn new() -> Self {
+        Self {
+            entries: [Entry::EMPTY; 512],
+        }
+    }
+
     /// Map a page with the given page size, from the given virtual address,
     /// to the physical address. The newly mapped page will have the given permissions.
     ///
@@ -39,7 +46,7 @@ impl Table {
 
         // walk down the page table to find the matching entry
         for level in (level..2).rev() {
-            if entry.valid() {
+            if !entry.valid() {
                 // allocate a new page for the page table
                 let page = pmem::zalloc().map_err(Error::Alloc)?.as_mut_ptr() as usize as u64;
 
@@ -56,6 +63,29 @@ impl Table {
         // `entry` now points to the actual entry that needs to be modified
         let new_entry = (ppn << 10) | (usize::from(perm) << 2) | Entry::VALID as usize;
         entry.set(new_entry as u64);
+        Ok(())
+    }
+
+    /// Identity map the given range using `size` pages.
+    pub fn identity_map(
+        &mut self,
+        start: PhysAddr,
+        end: PhysAddr,
+        perm: Perm,
+        size: PageSize,
+    ) -> Result<(), Error> {
+        let (start, end) = (usize::from(start), usize::from(end));
+
+        if end - start < size.size() {
+            return Err(Error::RangeTooSmall);
+        }
+
+        for addr in (start..end).step_by(size.size()) {
+            let vaddr = VirtAddr::from(addr);
+            let paddr = PhysAddr::from(addr);
+            self.map(paddr, vaddr, PageSize::Kilopage, perm)?;
+        }
+
         Ok(())
     }
 
@@ -149,6 +179,8 @@ impl Table {
 pub struct Entry(u64);
 
 impl Entry {
+    pub const EMPTY: Entry = Entry(0);
+
     /// The `V` bit inside a PTE.
     pub const VALID: u64 = 1 << 0;
     /// The `U` bit inside a PTE.

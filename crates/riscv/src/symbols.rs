@@ -1,8 +1,27 @@
 //! Linker symbols
 
+macro_rules! linker_section {
+    ($fn:ident, $start:ident, $end:ident) => {
+        pub fn $fn() -> (*mut u8, *mut u8) {
+            extern "C" {
+                static mut $start: Symbol;
+                static mut $end: Symbol;
+            }
+
+            unsafe { ($start.ptr(), $end.ptr()) }
+        }
+    };
+}
+
 extern "C" {
     static mut __kernel_start: Symbol;
     static mut __kernel_end: Symbol;
+
+    static mut __text_start: Symbol;
+    static mut __text_end: Symbol;
+
+    static mut __rodata_start: Symbol;
+    static mut __rodata_end: Symbol;
 }
 
 /// Helper struct to make handling with Linker Symbols easier.
@@ -22,7 +41,9 @@ impl Symbol {
     }
 }
 
-/// Returns a `(start, end)` pair of the whole kernel code.
-pub fn kernel_range() -> (*mut u8, *mut u8) {
-    unsafe { (__kernel_start.ptr(), __kernel_end.ptr()) }
-}
+linker_section!(kernel_range, __kernel_start, __kernel_end);
+linker_section!(text_range, __text_start, __text_end);
+linker_section!(rodata_range, __rodata_start, __rodata_end);
+linker_section!(data_range, __data_start, __data_end);
+linker_section!(bss_range, __bss_start, __bss_end);
+linker_section!(stack_range, __stack_start, __stack_end);
