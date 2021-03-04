@@ -4,6 +4,7 @@ use crate::{
     pmem, StaticCell,
 };
 use devicetree::DeviceTree;
+use pmem::alloc::PAGE_SIZE;
 use riscv::{csr::satp, symbols};
 
 static ROOT_TABLE: StaticCell<Table> = StaticCell::new(Table::new());
@@ -17,15 +18,27 @@ unsafe extern "C" fn _before_main(hart: usize, fdt: *const u8) -> ! {
     let tree = tree.expect("failed to initialize devicetree");
 
     // try to initialize uart debugging
-    if console::init(&tree) {
+    let uart_addr = console::init(&tree).map(|x| {
         info!("{} Uart console", "Initialized".green());
-    }
+        x
+    });
 
     // make the physical memory allocator ready for allocation
     let heap = pmem::init(&tree).expect("failed to initialize the physical memory allocator");
 
     // set up mapping
     let table = &mut *ROOT_TABLE.get();
+
+    // map the device tree
+    let len = pmem::alloc::align_up(tree.total_size() as usize, PAGE_SIZE);
+    table
+        .identity_map(
+            fdt.into(),
+            (fdt as usize + len).into(),
+            Perm::READ,
+            PageSize::Kilopage,
+        )
+        .expect("failed to map device tree");
 
     // identity map the regions of the page allocator
     for range in heap.as_slice() {
@@ -49,17 +62,32 @@ unsafe extern "C" fn _before_main(hart: usize, fdt: *const u8) -> ! {
             .expect("failed to map kernel section");
     };
 
-    map_section(
-        symbols::kernel_range(),
-        Perm::READ | Perm::WRITE | Perm::EXEC,
-    );
-    //map_section(symbols::text_range(), Perm::READ | Perm::EXEC);
-    //map_section(symbols::rodata_range(), Perm::READ);
-    //map_section(symbols::data_range(), Perm::READ | Perm::WRITE);
-    //map_section(symbols::bss_range(), Perm::READ | Perm::WRITE);
-    //map_section(symbols::stack_range(), Perm::READ | Perm::WRITE);
+    map_section(symbols::text_range(), Perm::READ | Perm::EXEC);
+    map_section(symbols::rodata_range(), Perm::READ);
+    map_section(symbols::data_range(), Perm::READ | Perm::WRITE);
+    map_section(symbols::bss_range(), Perm::READ | Perm::WRITE);
+    map_section(symbols::stack_range(), Perm::READ | Perm::WRITE);
 
-    println!("{:x?}", table.translate(0x0000000080200000.into()));
+    // map uart mmio device
+    if let Some(uart) = uart_addr {
+        table
+            .map(
+                uart.into(),
+                uart.into(),
+                PageSize::Kilopage,
+                Perm::READ | Perm::WRITE,
+            )
+            .expect("failed to map uart driver");
+    }
+
+    table
+        .map(
+            0x10_0000.into(),
+            0x10_0000.into(),
+            PageSize::Kilopage,
+            Perm::WRITE | Perm::READ,
+        )
+        .unwrap();
 
     // enable paging
     let satp = satp::Satp {
@@ -70,11 +98,9 @@ unsafe extern "C" fn _before_main(hart: usize, fdt: *const u8) -> ! {
 
     satp::write(satp);
     riscv::asm::sfence(None, None);
-    //dbg!();
 
     // jump to the kernel main function
-    //crate::kinit(hart, &tree)
-    loop {}
+    crate::kinit(hart)
 }
 
 /// The entrypoint for the whole kernel.

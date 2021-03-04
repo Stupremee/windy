@@ -48,13 +48,13 @@ impl ConsoleDevice {
     /// # Safety
     ///
     /// The given `node` must come from the devicetree to be a vaild node.
-    pub unsafe fn from_chosen(node: &ChosenNode<'_>) -> Option<Self> {
+    pub unsafe fn from_chosen(node: &ChosenNode<'_>) -> Option<(Self, usize)> {
         let stdout = node.stdout()?;
         let mut compatible = stdout.prop("compatible")?.as_strings();
 
         if compatible.any(|name| drivers::ns16550a::COMPATIBLE.contains(&name)) {
             let addr = stdout.regions().next()?.start();
-            Some(Self::NS16550(drivers::ns16550a::Device::new(addr)))
+            Some((Self::NS16550(drivers::ns16550a::Device::new(addr)), addr))
         } else {
             None
         }
@@ -70,14 +70,14 @@ impl ConsoleDevice {
 /// Initializes the global console by finding the right device that should
 /// be used according to the given `/chosen` node of the given tree.
 ///
-/// Returns `true` if there was a stdout device.
-pub fn init(tree: &DeviceTree<'_>) -> bool {
-    if let Some(mut dev) = unsafe { ConsoleDevice::from_chosen(&tree.chosen()) } {
+/// Returns `Some` with the physical address of the uart driver, if there's a uart device
+pub fn init(tree: &DeviceTree<'_>) -> Option<usize> {
+    if let Some((mut dev, addr)) = unsafe { ConsoleDevice::from_chosen(&tree.chosen()) } {
         dev.init();
         CONSOLE.lock().0 = Some(dev);
-        true
+        Some(addr)
     } else {
-        false
+        None
     }
 }
 
