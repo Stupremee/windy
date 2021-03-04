@@ -1,5 +1,5 @@
 use crate::unit;
-use core::ops;
+use core::{fmt, ops};
 
 macro_rules! addr_type {
     ($(#[$attr:meta])* $pub:vis struct $name:ident;) => {
@@ -99,18 +99,45 @@ impl Perm {
     pub const EXEC: Perm = Perm(0b100);
 
     /// Check if this permission is readable.
+    #[inline]
     pub fn read(self) -> bool {
-        self | Perm::READ != Perm::from(0u8)
+        self & Perm::READ != Perm::from(0u8)
     }
 
     /// Check if this permission is writable.
+    #[inline]
     pub fn write(self) -> bool {
-        self | Perm::WRITE != Perm::from(0u8)
+        self & Perm::WRITE != Perm::from(0u8)
     }
 
     /// Check if this permission is executable.
+    #[inline]
     pub fn exec(self) -> bool {
-        self | Perm::WRITE != Perm::from(0u8)
+        self & Perm::EXEC != Perm::from(0u8)
+    }
+}
+
+impl fmt::Display for Perm {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use owo_colors::OwoColorize;
+
+        if self.read() {
+            write!(f, "{}", "+R".green())?;
+        } else {
+            write!(f, "{}", "-R".red())?;
+        }
+
+        if self.write() {
+            write!(f, "{}", "+W".green())?;
+        } else {
+            write!(f, "{}", "-W".red())?;
+        }
+
+        if self.exec() {
+            write!(f, "{}", "+X".green())
+        } else {
+            write!(f, "{}", "-X".red())
+        }
     }
 }
 

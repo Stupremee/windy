@@ -118,7 +118,7 @@ macro_rules! dbg {
     ($val:expr $(,)?) => {
         match $val {
             tmp => {
-                $crate::debug!("[{}:{}] {} = {:#?}", ::core::file!(), ::core::line!(),
+                $crate::debug!("[{}:{}] {} = {:#x?}", ::core::file!(), ::core::line!(),
                     ::core::stringify!($val), &tmp);
                 tmp
             }

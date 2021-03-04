@@ -4,7 +4,7 @@ use crate::{
     pmem, StaticCell,
 };
 use devicetree::DeviceTree;
-use riscv::csr::satp;
+use riscv::{csr::satp, symbols};
 
 static ROOT_TABLE: StaticCell<Table> = StaticCell::new(Table::new());
 
@@ -22,67 +22,44 @@ unsafe extern "C" fn _before_main(hart: usize, fdt: *const u8) -> ! {
     }
 
     // make the physical memory allocator ready for allocation
-    pmem::init(&tree).expect("failed to initialize the physical memory allocator");
+    let heap = pmem::init(&tree).expect("failed to initialize the physical memory allocator");
 
     // set up mapping
     let table = &mut *ROOT_TABLE.get();
 
-    // identity map the kernel
-    let (kernel_start, kernel_end) = riscv::symbols::kernel_range();
-    table
-        .identity_map(
-            kernel_start.into(),
-            kernel_end.into(),
-            Perm::READ | Perm::WRITE | Perm::EXEC,
-            PageSize::Kilopage,
-        )
-        .expect("failed to map kernel region");
+    // identity map the regions of the page allocator
+    for range in heap.as_slice() {
+        let start = range.start as usize;
+        let end = range.end as usize;
 
-    // identity map all remaining sections
-    let (start, end) = riscv::symbols::text_range();
-    table
-        .identity_map(
-            start.into(),
-            end.into(),
-            Perm::READ | Perm::EXEC,
-            PageSize::Kilopage,
-        )
-        .expect("failed to map `.text` section");
+        table
+            .identity_map(
+                start.into(),
+                end.into(),
+                Perm::READ | Perm::WRITE,
+                PageSize::Kilopage,
+            )
+            .expect("failed to map heap region");
+    }
 
-    let (start, end) = riscv::symbols::rodata_range();
-    table
-        .identity_map(start.into(), end.into(), Perm::READ, PageSize::Kilopage)
-        .expect("failed to map `.rodata` section");
+    // identity map all sections
+    let mut map_section = |(start, end): (*mut u8, *mut u8), perm: Perm| {
+        table
+            .identity_map(start.into(), end.into(), perm, PageSize::Kilopage)
+            .expect("failed to map kernel section");
+    };
 
-    let (start, end) = riscv::symbols::data_range();
-    table
-        .identity_map(
-            start.into(),
-            end.into(),
-            Perm::READ | Perm::WRITE,
-            PageSize::Kilopage,
-        )
-        .expect("failed to map `.data` section");
+    map_section(
+        dbg!(symbols::kernel_range()),
+        Perm::READ | Perm::WRITE | Perm::EXEC,
+    );
+    //map_section(symbols::text_range(), Perm::READ | Perm::EXEC);
+    //map_section(symbols::rodata_range(), Perm::READ);
+    //map_section(symbols::data_range(), Perm::READ | Perm::WRITE);
+    //map_section(symbols::bss_range(), Perm::READ | Perm::WRITE);
+    //map_section(symbols::stack_range(), Perm::READ | Perm::WRITE);
 
-    let (start, end) = riscv::symbols::bss_range();
-    table
-        .identity_map(
-            start.into(),
-            end.into(),
-            Perm::READ | Perm::WRITE,
-            PageSize::Kilopage,
-        )
-        .expect("failed to map`.bss` section");
-
-    let (start, end) = riscv::symbols::stack_range();
-    table
-        .identity_map(
-            start.into(),
-            end.into(),
-            Perm::READ | Perm::WRITE,
-            PageSize::Kilopage,
-        )
-        .expect("failed to map stack");
+    println!("{:x?}", table.translate(0x0000000080200000.into()));
 
     // enable paging
     let satp = satp::Satp {
@@ -91,13 +68,13 @@ unsafe extern "C" fn _before_main(hart: usize, fdt: *const u8) -> ! {
         root_table: &ROOT_TABLE as *const _ as u64,
     };
 
-    dbg!();
     satp::write(satp);
     riscv::asm::sfence(None, None);
-    dbg!();
+    //dbg!();
 
     // jump to the kernel main function
-    crate::kinit(hart, &tree)
+    //crate::kinit(hart, &tree)
+    loop {}
 }
 
 /// The entrypoint for the whole kernel.

@@ -27,13 +27,15 @@ displaydoc_lite::displaydoc! {
 }
 
 /// Initialize the global memory allocator.
-pub unsafe fn init(tree: &DeviceTree<'_>) -> Result<(), Error> {
+///
+/// Return the list of
+pub unsafe fn init(tree: &DeviceTree<'_>) -> Result<RangeSet, Error> {
     let mut memory = RangeSet::new();
 
     tree.memory()
         .regions()
         .try_for_each(|region| {
-            let range = Range::new(region.start(), region.end());
+            let range = Range::new(region.start(), region.end() - 1);
             memory.insert(range)?;
             Ok::<(), RangeError>(())
         })
@@ -57,14 +59,9 @@ pub unsafe fn init(tree: &DeviceTree<'_>) -> Result<(), Error> {
 
             let start = NonNull::new(start as *mut _).ok_or(Error::NullRegion)?;
             let end = NonNull::new(end as *mut _).ok_or(Error::NullRegion)?;
-            let bytes = alloc::allocator()
+            alloc::allocator()
                 .add_region(start, end)
                 .map_err(Error::Alloc)?;
-
-            info!(
-                "Made {} available for physical memory allocation",
-                unit::bytes(bytes)
-            );
 
             Ok::<(), Error>(())
         })?;
@@ -75,7 +72,7 @@ pub unsafe fn init(tree: &DeviceTree<'_>) -> Result<(), Error> {
         unit::bytes(alloc::allocator().stats().total),
     );
 
-    Ok(())
+    Ok(memory)
 }
 
 /// Get a list of memory ranges that must not be used for memory allocation,
@@ -83,14 +80,18 @@ pub unsafe fn init(tree: &DeviceTree<'_>) -> Result<(), Error> {
 fn get_blocked_ranges(tree: &DeviceTree<'_>) -> [Range; 3] {
     let (kernel_start, kernel_end) = riscv::symbols::kernel_range();
 
+    // we align the end of the device tree to 4KiB to map them later
     let fdt = tree.as_ptr() as usize;
+    let fdt_end =
+        unsafe { alloc::align_up(fdt + tree.total_size() as usize, alloc::PAGE_SIZE) - 1 };
+
     [
         // this range contains the OpenSBI firmware
         Range::new(0x8000_0000, 0x801F_FFFF),
         // the kernel itself
         Range::new(kernel_start as _, kernel_end as usize - 1),
         // the actual device tree
-        Range::new(fdt, fdt + tree.total_size() as usize),
+        Range::new(fdt, fdt_end),
     ]
 }
 

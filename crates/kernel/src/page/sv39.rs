@@ -83,7 +83,7 @@ impl Table {
         for addr in (start..end).step_by(size.size()) {
             let vaddr = VirtAddr::from(addr);
             let paddr = PhysAddr::from(addr);
-            self.map(paddr, vaddr, PageSize::Kilopage, perm)?;
+            self.map(paddr, vaddr, size, perm)?;
         }
 
         Ok(())

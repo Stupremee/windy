@@ -128,11 +128,6 @@ impl BuddyAllocator {
             }
         }
 
-        debug!(
-            "Adding region at {:p} with order {} to Buddy Allocator",
-            start as *mut u8, order
-        );
-
         // push the block to the list for the given order
         let ptr = NonNull::new(start as *mut _).ok_or(Error::NullPointer)?;
         self.orders[order].push(ptr);
