@@ -50,7 +50,7 @@ unsafe extern "C" fn _before_main(hart: usize, fdt: *const u8) -> ! {
     };
 
     map_section(
-        dbg!(symbols::kernel_range()),
+        symbols::kernel_range(),
         Perm::READ | Perm::WRITE | Perm::EXEC,
     );
     //map_section(symbols::text_range(), Perm::READ | Perm::EXEC);

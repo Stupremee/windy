@@ -37,31 +37,17 @@ impl Table {
         let vpn = vpns_of_vaddr(vaddr);
         let ppn = ppn_of_paddr(paddr);
 
-        let mut entry = &mut self.entries[vpn[2]];
-        let level = match size {
-            PageSize::Kilopage => 0,
-            PageSize::Megapage => 1,
-            PageSize::Gigapage => 2,
+        let entry = match size {
+            PageSize::Gigapage => &mut self.entries[vpn[2]],
+            PageSize::Megapage => todo!(),
+            PageSize::Kilopage => {
+                let table = get_next_level(&mut self.entries[vpn[2]])?;
+                let table = get_next_level(&mut table.entries[vpn[1]])?;
+                &mut table.entries[vpn[0]]
+            }
         };
 
-        // walk down the page table to find the matching entry
-        for level in (level..2).rev() {
-            if !entry.valid() {
-                // allocate a new page for the page table
-                let page = pmem::zalloc().map_err(Error::Alloc)?.as_mut_ptr() as usize as u64;
-
-                // make the current `entry` point to the newly allocated `page`
-                entry.set((page >> 2) | Entry::VALID);
-            }
-
-            // `entry` points to the next PTE, so extract the PPN
-            // and get the entry this entry points to.
-            let new_entry = ((entry.get() & !0x3FF) << 2) as *mut Entry;
-            entry = unsafe { &mut *new_entry.add(vpn[level]) };
-        }
-
-        // `entry` now points to the actual entry that needs to be modified
-        let new_entry = (ppn << 10) | (usize::from(perm) << 2) | Entry::VALID as usize;
+        let new_entry = (ppn << 10) | (usize::from(perm) << 1) | Entry::VALID as usize;
         entry.set(new_entry as u64);
         Ok(())
     }
@@ -83,6 +69,7 @@ impl Table {
         for addr in (start..end).step_by(size.size()) {
             let vaddr = VirtAddr::from(addr);
             let paddr = PhysAddr::from(addr);
+            riscv::asm::sfence(usize::from(vaddr), None);
             self.map(paddr, vaddr, size, perm)?;
         }
 
@@ -129,21 +116,21 @@ impl Table {
     }
 
     fn entry(&self, vaddr: VirtAddr) -> Option<(&Table, &Entry, PageSize)> {
-        let [first, second, third] = vpns_of_vaddr(vaddr);
+        let vpn = vpns_of_vaddr(vaddr);
 
-        let entry = &self.entries[first];
+        let entry = &self.entries[vpn[2]];
         let next = match entry.kind()? {
             EntryKind::Leaf => return Some((self, entry, PageSize::Gigapage)),
             EntryKind::Branch(next) => unsafe { &*next.as_ptr::<Table>() },
         };
 
-        let entry = &next.entries[second];
+        let entry = &next.entries[vpn[1]];
         let next = match entry.kind()? {
             EntryKind::Leaf => return Some((next, entry, PageSize::Megapage)),
             EntryKind::Branch(next) => unsafe { &*next.as_ptr::<Table>() },
         };
 
-        let entry = &next.entries[third];
+        let entry = &next.entries[vpn[0]];
         match entry.kind()? {
             EntryKind::Leaf => Some((next, entry, PageSize::Kilopage)),
             EntryKind::Branch(_) => None,
@@ -151,25 +138,42 @@ impl Table {
     }
 
     fn entry_mut(&mut self, vaddr: VirtAddr) -> Option<(&mut Table, usize, PageSize)> {
-        let [first, second, third] = vpns_of_vaddr(vaddr);
+        let vpn = vpns_of_vaddr(vaddr);
 
-        let entry = &mut self.entries[first];
+        let entry = &mut self.entries[vpn[2]];
         let next = match entry.kind()? {
-            EntryKind::Leaf => return Some((self, first, PageSize::Gigapage)),
+            EntryKind::Leaf => return Some((self, vpn[2], PageSize::Gigapage)),
             EntryKind::Branch(next) => unsafe { &mut *next.as_ptr::<Table>() },
         };
 
-        let entry = &mut next.entries[second];
+        let entry = &mut next.entries[vpn[1]];
         let next = match entry.kind()? {
-            EntryKind::Leaf => return Some((next, second, PageSize::Megapage)),
+            EntryKind::Leaf => return Some((next, vpn[1], PageSize::Megapage)),
             EntryKind::Branch(next) => unsafe { &mut *next.as_ptr::<Table>() },
         };
 
-        let entry = &mut next.entries[third];
+        let entry = &mut next.entries[vpn[0]];
         match entry.kind()? {
-            EntryKind::Leaf => Some((next, third, PageSize::Kilopage)),
+            EntryKind::Leaf => Some((next, vpn[0], PageSize::Kilopage)),
             EntryKind::Branch(_) => None,
         }
+    }
+}
+
+/// Returns `None` if the given entry is a leaf.
+fn get_next_level(entry: &mut Entry) -> Result<&mut Table, Error> {
+    match entry.kind() {
+        None => {
+            let page = pmem::zalloc().map_err(Error::Alloc)?.as_mut_ptr().cast();
+
+            // make the given entry show to the new table
+            let ppn = ppn_of_paddr(PhysAddr::from(page as usize)) as u64;
+            entry.set((ppn << 10) | Entry::VALID);
+
+            Ok(unsafe { &mut *page })
+        }
+        Some(EntryKind::Branch(next)) => Ok(unsafe { &mut *next.as_ptr() }),
+        Some(EntryKind::Leaf) => Err(Error::AlreadyMapped),
     }
 }
 
@@ -182,7 +186,7 @@ impl Entry {
     pub const EMPTY: Entry = Entry(0);
 
     /// The `V` bit inside a PTE.
-    pub const VALID: u64 = 1 << 0;
+    pub const VALID: u64 = 1;
     /// The `U` bit inside a PTE.
     pub const USER: u64 = 1 << 4;
     /// The `G` bit inside a PTE.
@@ -228,7 +232,7 @@ impl Entry {
     /// Check if this PTE is a branch to the next level.
     #[inline]
     pub fn branch(&self) -> bool {
-        self.perm() == Perm::from(0u8)
+        self.perm() == Perm::from(0u8) && self.valid()
     }
 
     /// Return the permissions for this PTE.
@@ -265,7 +269,7 @@ impl Entry {
     /// Return the physical page number for this entry.
     #[inline]
     pub fn ppn(&self) -> PhysAddr {
-        PhysAddr::from((self.0 as usize >> 10) << 12)
+        PhysAddr::from(((self.0 as usize >> 10) & 0x0FFF_FFFF_FFFF) << 12)
     }
 }
 

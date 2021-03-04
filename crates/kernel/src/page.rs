@@ -15,6 +15,8 @@ displaydoc_lite::displaydoc! {
         UnalignedAddress,
         /// tried to identity map a range using a page size that can't fit into the range
         RangeTooSmall,
+        /// tried to map an address which was already mapped
+        AlreadyMapped,
         /// failed to allocate a new page
         Alloc(crate::pmem::AllocError),
     }
