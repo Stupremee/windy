@@ -5,15 +5,9 @@
 //! SBI functions.
 //!
 //! [OpenSBI]: https://github.com/riscv/riscv-sbi-doc
-#![deny(rust_2018_idioms, broken_intra_doc_links)]
+#![deny(rust_2018_idioms, rustdoc::broken_intra_doc_links)]
 #![no_std]
 #![feature(asm, cfg_target_has_atomic, never_type)]
-
-#[cfg(not(target_pointer_width = "64"))]
-compile_error!("Windy can only run on 64 bit systems");
-
-#[cfg(not(target_has_atomic = "ptr"))]
-compile_error!("Windy can only run on systems that have atomic support");
 
 // mod hart_mask;
 // mod interface;

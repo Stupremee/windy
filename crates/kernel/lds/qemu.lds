@@ -57,15 +57,31 @@ SECTIONS
     PROVIDE(__trap_stack = .);
   } >ram AT>ram :data
 
+  .tdata : {
+    PROVIDE(__tdata_start = .);
+    *(.tdata)
+    *(.tdata.*)
+    . = ALIGN(0x1000);
+    PROVIDE(__tdata_end = .);
+  } >ram AT>ram :tdata
+
   .bss : {
     PROVIDE(__bss_start = .);
     *(.sbss)
     *(.sbss.*)
     *(.bss)
     *(.bss.*)
-    . = ALIGN(8);
+    . = ALIGN(0x1000);
     PROVIDE(__bss_end = .);
   } >ram AT>ram :bss
+
+  .tbss : {
+    PROVIDE(__tbss_start = .);
+    *(.tbss)
+    *(.tbss.*)
+    . = ALIGN(0x1000);
+    PROVIDE(__tbss_end = .);
+  } >ram AT>ram :tbss
 
   PROVIDE(__stack_start = .);
   . += 0x80000;

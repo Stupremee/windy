@@ -80,6 +80,8 @@ dependencies = [
 [[package]]
 name = "rumio"
 version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "49de434f6cd245a72e510ee5f5e40df11eddf42c3ef844d9b9224de7360a812a"
 dependencies = [
  "bitflags",
  "defile",

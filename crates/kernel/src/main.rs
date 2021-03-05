@@ -1,4 +1,4 @@
-#![deny(rust_2018_idioms, broken_intra_doc_links)]
+#![deny(rust_2018_idioms, rustdoc::broken_intra_doc_links)]
 #![allow(clippy::missing_safety_doc)]
 #![no_std]
 #![no_main]
@@ -11,7 +11,8 @@
     slice_ptr_get,
     slice_ptr_len,
     int_bits_const,
-    array_map
+    array_map,
+    thread_local
 )]
 
 #[cfg(not(target_pointer_width = "64"))]
@@ -31,12 +32,17 @@ pub mod unit;
 
 mod boot;
 mod panic;
+mod trap;
 
 mod static_cell;
 pub use static_cell::StaticCell;
 
+use core::cell::Cell;
 use devicetree::DeviceTree;
 use displaydoc_lite::displaydoc;
+
+#[thread_local]
+static FOO: Cell<u32> = Cell::new(10);
 
 /// The entry point for the booting hart.
 fn kinit(hart_id: usize, tree: &DeviceTree<'_>) -> ! {
@@ -58,6 +64,8 @@ fn windy_main(_hart_id: usize, tree: &DeviceTree<'_>) -> Result<(), Error> {
     for node in tree.find_nodes("/virtio_mmio") {
         info!("Tree node: {}", node.name());
     }
+
+    dbg!(FOO.get());
 
     Ok(())
 }

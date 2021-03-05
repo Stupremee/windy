@@ -9,7 +9,7 @@ edition = "2018"
 sbi = { path = "../sbi" }
 riscv = { path = "../riscv" }
 devicetree = { path = "../devicetree" }
-rumio = { path = "../../../rumio", version = "0.2" }
+rumio = "0.2"
 owo-colors = "1.3"
 displaydoc-lite = "0.1"
 

@@ -13,17 +13,6 @@ macro_rules! linker_section {
     };
 }
 
-extern "C" {
-    static mut __kernel_start: Symbol;
-    static mut __kernel_end: Symbol;
-
-    static mut __text_start: Symbol;
-    static mut __text_end: Symbol;
-
-    static mut __rodata_start: Symbol;
-    static mut __rodata_end: Symbol;
-}
-
 /// Helper struct to make handling with Linker Symbols easier.
 #[repr(transparent)]
 pub struct Symbol(u8);
@@ -45,5 +34,7 @@ linker_section!(kernel_range, __kernel_start, __kernel_end);
 linker_section!(text_range, __text_start, __text_end);
 linker_section!(rodata_range, __rodata_start, __rodata_end);
 linker_section!(data_range, __data_start, __data_end);
+linker_section!(tdata_range, __tdata_start, __tdata_end);
 linker_section!(bss_range, __bss_start, __bss_end);
+linker_section!(tbss_range, __tbss_start, __tbss_end);
 linker_section!(stack_range, __stack_start, __stack_end);
