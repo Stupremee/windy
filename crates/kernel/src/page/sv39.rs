@@ -39,7 +39,10 @@ impl Table {
 
         let entry = match size {
             PageSize::Gigapage => &mut self.entries[vpn[2]],
-            PageSize::Megapage => todo!(),
+            PageSize::Megapage => {
+                let table = get_next_level(&mut self.entries[vpn[2]])?;
+                &mut table.entries[vpn[1]]
+            }
             PageSize::Kilopage => {
                 let table = get_next_level(&mut self.entries[vpn[2]])?;
                 let table = get_next_level(&mut table.entries[vpn[1]])?;
@@ -76,6 +79,74 @@ impl Table {
         Ok(())
     }
 
+    /// Identity map a region using the best fitting page size.
+    pub fn fit_identity_map(
+        &mut self,
+        start: PhysAddr,
+        end: PhysAddr,
+        perm: Perm,
+    ) -> Result<(), Error> {
+        let (mut start, end) = (usize::from(start), usize::from(end));
+
+        fn loop_map(
+            table: &mut Table,
+            start: &mut usize,
+            end: usize,
+            size: PageSize,
+            perm: Perm,
+        ) -> Result<(), Error> {
+            if end.saturating_sub(*start) < size.size() {
+                return Err(Error::RangeTooSmall);
+            }
+
+            loop {
+                let vaddr = VirtAddr::from(*start);
+                let paddr = PhysAddr::from(*start);
+                table.map(paddr, vaddr, size, perm)?;
+
+                *start += size.size();
+                if *start >= end {
+                    break;
+                }
+            }
+
+            Ok(())
+        }
+
+        fn try_align(
+            table: &mut Table,
+            start: &mut usize,
+            end: usize,
+            size: PageSize,
+            perm: Perm,
+        ) -> Result<bool, Error> {
+            let size = size.size();
+            let aligned = pmem::alloc::align_up(*start, size);
+
+            if end.saturating_sub(aligned) >= size {
+                table.fit_identity_map((*start).into(), aligned.into(), perm)?;
+                *start = aligned;
+                Ok(true)
+            } else {
+                Ok(false)
+            }
+        }
+
+        if try_align(self, &mut start, end, PageSize::Gigapage, perm)? {
+            loop_map(self, &mut start, end, PageSize::Gigapage, perm)?;
+        }
+
+        if try_align(self, &mut start, end, PageSize::Megapage, perm)? {
+            loop_map(self, &mut start, end, PageSize::Megapage, perm)?;
+        }
+
+        if start != end {
+            loop_map(self, &mut start, end, PageSize::Kilopage, perm)
+        } else {
+            Ok(())
+        }
+    }
+
     /// Tries to unmap the given virtual address.
     ///
     /// Return `true` if the unmapping was successful.
@@ -108,7 +179,12 @@ impl Table {
     pub fn translate(&self, vaddr: VirtAddr) -> Option<(PhysAddr, PageSize)> {
         self.entry(vaddr).map(|(_, entry, size)| {
             // extract the offset inside the page
-            let off = usize::from(vaddr) & 0xFFF;
+            let off = usize::from(vaddr);
+            let off = match size {
+                PageSize::Kilopage => off & 0xFFF,
+                PageSize::Megapage => off & 0x1FFFFF,
+                PageSize::Gigapage => off & 0x3FFFFFFF,
+            };
             let ppn = entry.ppn();
 
             (ppn.offset(off), size)

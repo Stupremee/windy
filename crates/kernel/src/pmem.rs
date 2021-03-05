@@ -82,8 +82,7 @@ fn get_blocked_ranges(tree: &DeviceTree<'_>) -> [Range; 3] {
 
     // we align the end of the device tree to 4KiB to map them later
     let fdt = tree.as_ptr() as usize;
-    let fdt_end =
-        unsafe { alloc::align_up(fdt + tree.total_size() as usize, alloc::PAGE_SIZE) - 1 };
+    let fdt_end = alloc::align_up(fdt + tree.total_size() as usize, alloc::PAGE_SIZE) - 1;
 
     [
         // this range contains the OpenSBI firmware

@@ -18,10 +18,7 @@ pub const PAGE_SIZE: usize = 4 * KIB;
 pub type Result<T, E = Error> = core::result::Result<T, E>;
 
 /// Aligns the given `addr` upwards to `align`.
-///
-/// # Safety
-/// Requires `align` to be a power of two.
-pub unsafe fn align_up(addr: usize, align: usize) -> usize {
+pub fn align_up(addr: usize, align: usize) -> usize {
     (addr + align - 1) & !(align - 1)
 }
 

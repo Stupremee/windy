@@ -158,7 +158,7 @@ impl<'tree> DeviceTree<'tree> {
                         }
 
                         // get the next path
-                        let next_part = path.peek().map(|&x| x).or(last_part)?;
+                        let next_part = path.peek().copied().or(last_part)?;
 
                         // otherwise we compare the user provided path
                         // with the current node name

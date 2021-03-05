@@ -39,8 +39,8 @@ use devicetree::DeviceTree;
 use displaydoc_lite::displaydoc;
 
 /// The entry point for the booting hart.
-fn kinit(hart_id: usize) -> ! {
-    match windy_main(hart_id) {
+fn kinit(hart_id: usize, tree: &DeviceTree<'_>) -> ! {
+    match windy_main(hart_id, tree) {
         Ok(()) => arch::exit(0),
         Err(err) => {
             error!("Failed to initialize kernel: {}", err.red());
@@ -54,14 +54,10 @@ fn kinit(hart_id: usize) -> ! {
 }
 
 /// The "safe" entry point for the kernel.
-fn windy_main(_hart_id: usize) -> Result<(), Error> {
-    //for node in tree.find_nodes("/virtio_mmio") {
-    //info!("Tree node: {}", node.name());
-    //}
-
-    dbg!();
-    //sbi::system::shutdown().unwrap();
-    dbg!();
+fn windy_main(_hart_id: usize, tree: &DeviceTree<'_>) -> Result<(), Error> {
+    for node in tree.find_nodes("/virtio_mmio") {
+        info!("Tree node: {}", node.name());
+    }
 
     Ok(())
 }

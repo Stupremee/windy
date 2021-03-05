@@ -43,22 +43,17 @@ unsafe extern "C" fn _before_main(hart: usize, fdt: *const u8) -> ! {
     // identity map the regions of the page allocator
     for range in heap.as_slice() {
         let start = range.start as usize;
-        let end = range.end as usize;
+        let end = range.end as usize + 1;
 
         table
-            .identity_map(
-                start.into(),
-                end.into(),
-                Perm::READ | Perm::WRITE,
-                PageSize::Kilopage,
-            )
+            .fit_identity_map(start.into(), end.into(), Perm::READ | Perm::WRITE)
             .expect("failed to map heap region");
     }
 
     // identity map all sections
     let mut map_section = |(start, end): (*mut u8, *mut u8), perm: Perm| {
         table
-            .identity_map(start.into(), end.into(), perm, PageSize::Kilopage)
+            .fit_identity_map(start.into(), end.into(), perm)
             .expect("failed to map kernel section");
     };
 
@@ -100,7 +95,7 @@ unsafe extern "C" fn _before_main(hart: usize, fdt: *const u8) -> ! {
     riscv::asm::sfence(None, None);
 
     // jump to the kernel main function
-    crate::kinit(hart)
+    crate::kinit(hart, &tree)
 }
 
 /// The entrypoint for the whole kernel.
