@@ -6,3 +6,4 @@ default-members = ["crates/kernel"]
 
 [profile.release]
 debug = true
+lto = "fat"

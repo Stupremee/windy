@@ -7,18 +7,10 @@ OUTPUT_ARCH(riscv64gc)
 
 ENTRY(_boot)
 
-MEMORY
-{
-  /*
-   * Add 0x200000 here because OpenSBI will jump to this address since we are using fw_dynamic
-   *
-   * NOTE: Do not change format of `LENGTH = <x>M`, otherwise the build script will fail.
-   */
-  ram : ORIGIN = 0x80000000 + 0x200000, LENGTH = 128M
-}
-
 SECTIONS
 {
+  . = 0x80200000;
+
   .text : {
     PROVIDE(__kernel_start = .);
 
@@ -28,9 +20,7 @@ SECTIONS
     *(.text.*)
     . = ALIGN(0x1000);
     PROVIDE(__text_end = .);
-  } >ram AT>ram :text
-
-  PROVIDE(__global_pointer = .);
+  }
 
   .rodata : {
     PROVIDE(__rodata_start = .);
@@ -38,7 +28,9 @@ SECTIONS
     *(.rodata.*)
     . = ALIGN(0x1000);
     PROVIDE(__rodata_end = .);
-  } >ram AT>ram :text
+  }
+
+  PROVIDE(__global_pointer$ = . + 0x800);
 
   .data : {
     PROVIDE(__data_start = .);
@@ -49,7 +41,7 @@ SECTIONS
     *(.data.*)
     . = ALIGN(0x1000);
     PROVIDE(__data_end = .);
-  } >ram AT>ram :data
+  }
 
   .tdata : {
     PROVIDE(__tdata_start = .);
@@ -57,7 +49,7 @@ SECTIONS
     *(.tdata.*)
     . = ALIGN(0x1000);
     PROVIDE(__tdata_end = .);
-  } >ram AT>ram :tdata
+  }
 
   .bss : {
     PROVIDE(__bss_start = .);
@@ -67,7 +59,7 @@ SECTIONS
     *(.bss.*)
     . = ALIGN(0x1000);
     PROVIDE(__bss_end = .);
-  } >ram AT>ram :bss
+  }
 
   PROVIDE(__stack_start = .);
   . += 0x80000;

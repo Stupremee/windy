@@ -121,28 +121,16 @@ pub fn alloc_pages(count: usize) -> Result<NonNull<[u8]>, AllocError> {
 
 /// Allocate a single page of physical memory, and initialize all bytes with zero.
 pub fn zalloc() -> Result<NonNull<[u8]>, AllocError> {
-    let ptr = alloc::allocator().alloc()?;
-
-    unsafe {
-        let count = ptr.as_ptr().len();
-        core::ptr::write_bytes(ptr.as_mut_ptr(), 0, count);
-    }
-
-    Ok(ptr)
+    zalloc_pages(1)
 }
 
 /// Allocate a multiple pages of physical memory, that are contigous,
 /// and initialize all bytes with zero.
 pub fn zalloc_pages(count: usize) -> Result<NonNull<[u8]>, AllocError> {
     let ptr = alloc::allocator().alloc_pages(count)?;
-    dbg!(ptr.as_ptr().cast::<u8>() as usize);
-    unsafe {
-        dbg!(crate::page::root().translate((ptr.as_ptr().cast::<u8>() as usize).into()));
-    }
 
     let slice = ptr.cast::<u64>().as_ptr();
     for off in 0..((count * alloc::PAGE_SIZE) / 8) {
-        dbg!(off);
         unsafe {
             *slice.add(off) = 0;
         }

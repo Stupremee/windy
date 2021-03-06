@@ -65,9 +65,9 @@ fn windy_main(_hart_id: usize, tree: &DeviceTree<'_>) -> Result<(), Error> {
     // initialize hart local storage
     unsafe { hart::init_hls().expect("failed to initialize hart local storage") };
 
-    let mut x = pmem::zalloc_pages(4).unwrap();
+    let mut x = pmem::alloc_pages(4).unwrap();
     unsafe {
-        x.as_mut()[0] = 1;
+        x.as_mut()[0xFFF] = 1;
     }
 
     for node in tree.find_nodes("/virtio_mmio") {
