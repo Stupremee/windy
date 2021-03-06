@@ -36,5 +36,4 @@ linker_section!(rodata_range, __rodata_start, __rodata_end);
 linker_section!(data_range, __data_start, __data_end);
 linker_section!(tdata_range, __tdata_start, __tdata_end);
 linker_section!(bss_range, __bss_start, __bss_end);
-linker_section!(tbss_range, __tbss_start, __tbss_end);
 linker_section!(stack_range, __stack_start, __stack_end);

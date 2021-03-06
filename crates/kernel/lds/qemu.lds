@@ -49,12 +49,6 @@ SECTIONS
     *(.data.*)
     . = ALIGN(0x1000);
     PROVIDE(__data_end = .);
-
-    /* `__trap_stack` is used inside the trap handler for saving the trap 
-     * frame and used as the actual stack
-     */
-    . += 4096;
-    PROVIDE(__trap_stack = .);
   } >ram AT>ram :data
 
   .tdata : {
@@ -74,14 +68,6 @@ SECTIONS
     . = ALIGN(0x1000);
     PROVIDE(__bss_end = .);
   } >ram AT>ram :bss
-
-  .tbss : {
-    PROVIDE(__tbss_start = .);
-    *(.tbss)
-    *(.tbss.*)
-    . = ALIGN(0x1000);
-    PROVIDE(__tbss_end = .);
-  } >ram AT>ram :tbss
 
   PROVIDE(__stack_start = .);
   . += 0x80000;

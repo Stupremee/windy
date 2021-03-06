@@ -1,5 +1,5 @@
 use crate::{
-    console,
+    console, hart,
     page::{sv39::Table, PageSize, Perm},
     pmem, StaticCell,
 };
@@ -62,12 +62,7 @@ unsafe extern "C" fn _before_main(hart: usize, fdt: *const u8) -> ! {
     map_section(symbols::data_range(), Perm::READ | Perm::WRITE);
     map_section(symbols::tdata_range(), Perm::READ | Perm::WRITE);
     map_section(symbols::bss_range(), Perm::READ | Perm::WRITE);
-    map_section(symbols::tbss_range(), Perm::READ | Perm::WRITE);
     map_section(symbols::stack_range(), Perm::READ | Perm::WRITE);
-
-    // set the thread pointer
-    let (start, _) = symbols::tdata_range();
-    asm!("mv tp, {}", in(reg) start);
 
     // map uart mmio device
     if let Some(uart) = uart_addr {

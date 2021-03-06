@@ -26,6 +26,7 @@ pub mod console;
 pub mod drivers;
 #[macro_use]
 pub mod log;
+pub mod hart;
 pub mod page;
 pub mod pmem;
 pub mod unit;
@@ -61,6 +62,14 @@ fn kinit(hart_id: usize, tree: &DeviceTree<'_>) -> ! {
 
 /// The "safe" entry point for the kernel.
 fn windy_main(_hart_id: usize, tree: &DeviceTree<'_>) -> Result<(), Error> {
+    // initialize hart local storage
+    unsafe { hart::init_hls().expect("failed to initialize hart local storage") };
+
+    let mut x = pmem::zalloc_pages(4).unwrap();
+    unsafe {
+        x.as_mut()[0] = 1;
+    }
+
     for node in tree.find_nodes("/virtio_mmio") {
         info!("Tree node: {}", node.name());
     }
